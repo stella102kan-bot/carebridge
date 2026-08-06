@@ -1,0 +1,520 @@
+{
+  "project": "CareBridge Smart Pre-Consultation Platform",
+  "description": "FHIR-based sample data for an elderly diabetic patient using CareBridge pre-consultation, hospital recommendation, and follow-up care.",
+  "resources": [
+    {
+      "resourceType": "Person",
+      "id": "person-grandpa-001",
+      "active": true,
+      "name": [
+        {
+          "use": "official",
+          "text": "爺爺"
+        }
+      ],
+      "gender": "male",
+      "birthDate": "1950-04-12",
+      "telecom": [
+        {
+          "system": "phone",
+          "value": "0912123456",
+          "use": "mobile"
+        }
+      ],
+      "link": [
+        {
+          "target": {
+            "reference": "Patient/patient-grandpa-001",
+            "type": "Patient",
+            "display": "爺爺（病人）"
+          }
+        }
+      ]
+    },
+
+    {
+      "resourceType": "Patient",
+      "id": "patient-grandpa-001",
+      "identifier": [
+        {
+          "system": "https://carebridge.tw/patient-id",
+          "value": "PAT1001"
+        }
+      ],
+      "active": true,
+      "name": [
+        {
+          "use": "official",
+          "text": "爺爺"
+        }
+      ],
+      "gender": "male",
+      "birthDate": "1950-04-12",
+      "telecom": [
+        {
+          "system": "phone",
+          "value": "0912123456",
+          "use": "mobile"
+        }
+      ],
+      "address": [
+        {
+          "text": "台灣偏鄉地區"
+        }
+      ],
+      "managingOrganization": {
+        "reference": "Organization/hospital-001",
+        "display": "CareBridge合作醫院"
+      },
+      "generalPractitioner": [
+        {
+          "reference": "Practitioner/doctor-001",
+          "display": "醫師"
+        }
+      ],
+      "extension": [
+        {
+          "url": "https://carebridge.tw/fhir/StructureDefinition/medical-history",
+          "valueString": "第二型糖尿病"
+        }
+      ]
+    },
+
+    {
+      "resourceType": "Practitioner",
+      "id": "doctor-001",
+      "active": true,
+      "identifier": [
+        {
+          "system": "https://carebridge.tw/doctor-id",
+          "value": "DOC1001"
+        }
+      ],
+      "name": [
+        {
+          "use": "official",
+          "text": "醫師"
+        }
+      ],
+      "qualification": [
+        {
+          "code": {
+            "text": "家庭醫學科"
+          }
+        }
+      ]
+    },
+
+    {
+      "resourceType": "Organization",
+      "id": "hospital-001",
+      "active": true,
+      "name": "CareBridge合作醫院"
+    },
+
+    {
+      "resourceType": "Condition",
+      "id": "condition-diabetes-001",
+      "clinicalStatus": {
+        "text": "active"
+      },
+      "verificationStatus": {
+        "text": "confirmed"
+      },
+      "code": {
+        "text": "第二型糖尿病"
+      },
+      "subject": {
+        "reference": "Patient/patient-grandpa-001"
+      }
+    },
+
+    {
+      "resourceType": "QuestionnaireResponse",
+      "id": "questionnaire-001",
+      "status": "completed",
+      "subject": {
+        "reference": "Patient/patient-grandpa-001"
+      },
+      "authored": "2026-08-06T09:00:00+08:00",
+      "item": [
+        {
+          "text": "主要症狀",
+          "answer": [
+            {
+              "valueString": "這個禮拜容易喘不上氣、胸口悶、昨天開始咳嗽、有痰、今天早上體溫38.5°C。"
+            }
+          ]
+        },
+        {
+          "text": "輸入方式",
+          "answer": [
+            {
+              "valueString": "語音轉文字"
+            }
+          ]
+        }
+      ]
+    },
+
+    {
+      "resourceType": "Appointment",
+      "id": "appointment-001",
+      "status": "booked",
+      "description": "CareBridge智慧推薦合作醫院",
+      "participant": [
+        {
+          "actor": {
+            "reference": "Patient/patient-grandpa-001"
+          },
+          "status": "accepted"
+        }
+      ],
+      "comment": "候診號碼10號，預估等待30分鐘。"
+    },
+
+    {
+      "resourceType": "Encounter",
+      "id": "encounter-001",
+      "status": "finished",
+      "class": {
+        "code": "AMB",
+        "display": "ambulatory"
+      },
+      "subject": {
+        "reference": "Patient/patient-grandpa-001"
+      },
+      "participant": [
+        {
+          "individual": {
+            "reference": "Practitioner/doctor-001",
+            "display": "醫師"
+          }
+        }
+      ],
+      "reasonCode": [
+        {
+          "text": "呼吸困難、胸悶、咳嗽、發燒"
+        }
+      ],
+      "serviceProvider": {
+        "reference": "Organization/hospital-001"
+      }
+    },
+
+    {
+      "resourceType": "Observation",
+      "id": "observation-temperature-001",
+      "status": "final",
+      "category": [
+        {
+          "text": "vital-signs"
+        }
+      ],
+      "code": {
+        "text": "Body Temperature"
+      },
+      "subject": {
+        "reference": "Patient/patient-grandpa-001"
+      },
+      "valueQuantity": {
+        "value": 38.5,
+        "unit": "°C"
+      }
+    },
+
+    {
+      "resourceType": "Observation",
+      "id": "observation-symptom-001",
+      "status": "final",
+      "category": [
+        {
+          "text": "exam"
+        }
+      ],
+      "code": {
+        "text": "Chief Complaint"
+      },
+      "subject": {
+        "reference": "Patient/patient-grandpa-001"
+      },
+      "valueString": "呼吸困難、胸悶、咳嗽、有痰"
+    },
+
+    {
+      "resourceType": "ServiceRequest",
+      "id": "servicerequest-xray-001",
+      "status": "completed",
+      "intent": "order",
+      "code": {
+        "text": "Chest X-ray"
+      },
+      "subject": {
+        "reference": "Patient/patient-grandpa-001"
+      },
+      "encounter": {
+        "reference": "Encounter/encounter-001"
+      }
+    },
+
+    {
+      "resourceType": "ServiceRequest",
+      "id": "servicerequest-lab-001",
+      "status": "completed",
+      "intent": "order",
+      "code": {
+        "text": "Blood Test"
+      },
+      "subject": {
+        "reference": "Patient/patient-grandpa-001"
+      },
+      "encounter": {
+        "reference": "Encounter/encounter-001"
+      }
+    },
+
+    {
+      "resourceType": "DiagnosticReport",
+      "id": "diagnosticreport-001",
+      "status": "final",
+      "code": {
+        "text": "Chest Infection Evaluation"
+      },
+      "subject": {
+        "reference": "Patient/patient-grandpa-001"
+      },
+      "encounter": {
+        "reference": "Encounter/encounter-001"
+      },
+      "conclusion": "疑似上呼吸道感染，無肺炎徵象，考量病人糖尿病病史調整治療方式。"
+    }
+    ,
+    {
+      "resourceType": "Condition",
+      "id": "condition-acute-001",
+      "clinicalStatus": {
+        "text": "active"
+      },
+      "verificationStatus": {
+        "text": "confirmed"
+      },
+      "code": {
+        "text": "上呼吸道感染"
+      },
+      "subject": {
+        "reference": "Patient/patient-grandpa-001"
+      },
+      "encounter": {
+        "reference": "Encounter/encounter-001"
+      }
+    },
+
+    {
+      "resourceType": "MedicationStatement",
+      "id": "medicationstatement-diabetes-001",
+      "status": "active",
+      "subject": {
+        "reference": "Patient/patient-grandpa-001"
+      },
+      "medicationCodeableConcept": {
+        "text": "Metformin 500mg"
+      },
+      "effectivePeriod": {
+        "start": "2025-01-01"
+      },
+      "note": [
+        {
+          "text": "病人長期服用糖尿病藥物。"
+        }
+      ]
+    },
+
+    {
+      "resourceType": "MedicationRequest",
+      "id": "medicationrequest-001",
+      "status": "active",
+      "intent": "order",
+      "subject": {
+        "reference": "Patient/patient-grandpa-001"
+      },
+      "requester": {
+        "reference": "Practitioner/doctor-001"
+      },
+      "encounter": {
+        "reference": "Encounter/encounter-001"
+      },
+      "medicationCodeableConcept": {
+        "text": "Acetaminophen 500mg"
+      },
+      "dosageInstruction": [
+        {
+          "text": "每6小時1次，發燒時服用。"
+        }
+      ],
+      "note": [
+        {
+          "text": "已避開可能影響血糖控制之藥物。"
+        }
+      ]
+    },
+
+    {
+      "resourceType": "MedicationRequest",
+      "id": "medicationrequest-002",
+      "status": "active",
+      "intent": "order",
+      "subject": {
+        "reference": "Patient/patient-grandpa-001"
+      },
+      "requester": {
+        "reference": "Practitioner/doctor-001"
+      },
+      "encounter": {
+        "reference": "Encounter/encounter-001"
+      },
+      "medicationCodeableConcept": {
+        "text": "Ambroxol"
+      },
+      "dosageInstruction": [
+        {
+          "text": "每日三次，飯後服用。"
+        }
+      ]
+    },
+
+    {
+      "resourceType": "Communication",
+      "id": "communication-pharmacist-001",
+      "status": "completed",
+      "subject": {
+        "reference": "Patient/patient-grandpa-001"
+      },
+      "sender": {
+        "reference": "Practitioner/doctor-001",
+        "display": "藥師"
+      },
+      "recipient": [
+        {
+          "reference": "Patient/patient-grandpa-001"
+        }
+      ],
+      "payload": [
+        {
+          "contentString": "請依照醫囑按時服藥，糖尿病藥物請依照原本服藥時間服用，如有不適請立即回診。"
+        }
+      ]
+    },
+
+    {
+      "resourceType": "CarePlan",
+      "id": "careplan-001",
+      "status": "active",
+      "intent": "plan",
+      "subject": {
+        "reference": "Patient/patient-grandpa-001"
+      },
+      "title": "返家照護計畫",
+      "description": "多休息、多補充水分、按時服藥，持續監測血糖及體溫。"
+    },
+
+    {
+      "resourceType": "Observation",
+      "id": "observation-followup-temperature-001",
+      "status": "final",
+      "category": [
+        {
+          "text": "vital-signs"
+        }
+      ],
+      "code": {
+        "text": "Body Temperature"
+      },
+      "subject": {
+        "reference": "Patient/patient-grandpa-001"
+      },
+      "effectiveDateTime": "2026-08-13T09:00:00+08:00",
+      "valueQuantity": {
+        "value": 36.8,
+        "unit": "°C"
+      }
+    },
+
+    {
+      "resourceType": "Observation",
+      "id": "observation-followup-bloodsugar-001",
+      "status": "final",
+      "category": [
+        {
+          "text": "laboratory"
+        }
+      ],
+      "code": {
+        "text": "Blood Sugar"
+      },
+      "subject": {
+        "reference": "Patient/patient-grandpa-001"
+      },
+      "effectiveDateTime": "2026-08-13T09:00:00+08:00",
+      "valueQuantity": {
+        "value": 126,
+        "unit": "mg/dL"
+      }
+    },
+
+    {
+      "resourceType": "Encounter",
+      "id": "encounter-followup-001",
+      "status": "finished",
+      "class": {
+        "code": "AMB",
+        "display": "ambulatory"
+      },
+      "subject": {
+        "reference": "Patient/patient-grandpa-001"
+      },
+      "participant": [
+        {
+          "individual": {
+            "reference": "Practitioner/doctor-001",
+            "display": "醫師"
+          }
+        }
+      ],
+      "reasonCode": [
+        {
+          "text": "回診追蹤"
+        }
+      ]
+    },
+
+    {
+      "resourceType": "DocumentReference",
+      "id": "documentreference-followup-001",
+      "status": "current",
+      "subject": {
+        "reference": "Patient/patient-grandpa-001"
+      },
+      "description": "CareBridge完整就醫紀錄",
+      "content": [
+        {
+          "attachment": {
+            "contentType": "text/plain",
+            "title": "Medical History Summary",
+            "data": "UHJlLWNvbnN1bHRhdGlvbiwgZGlhYmV0ZXMgaGlzdG9yeSwgZGlhZ25vc2lzLCBtZWRpY2F0aW9uIGFuZCBmb2xsb3ctdXAgcmVjb3Jkcy4="
+          }
+        }
+      ]
+    },
+
+    {
+      "resourceType": "ClinicalImpression",
+      "id": "clinicalimpression-followup-001",
+      "status": "completed",
+      "subject": {
+        "reference": "Patient/patient-grandpa-001"
+      },
+      "description": "病人依照醫囑服藥並返家休養後，呼吸困難、咳嗽及發燒症狀均已改善，血糖控制穩定，回診時醫師透過CareBridge快速查閱預問診、診斷及處方紀錄，順利完成追蹤，病人已恢復健康。"
+    }
+
+  ]
+}
