@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CareBridge - 處方管理</title>
+</head>
+
+<body>
+
+    <h1>處方管理</h1>
+
+    <p>請輸入患者身分證字號：</p>
+
+    <form action="/hospital-prescription" method="POST">
+
+        <input
+            type="text"
+            name="id_number"
+            maxlength="10"
+            placeholder="請輸入身分證字號"
+            required
+        >
+
+        <br><br>
+
+        <button type="submit">
+            查詢處方
+        </button>
+
+    </form>
+
+    <br>
+
+    <button onclick="location.href='/hospital'">
+        回到醫院工作平台
+    </button>
+
+</body>
+
+</html>

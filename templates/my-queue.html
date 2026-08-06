@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>CareBridge - 我的候診進度</title>
+</head>
+
+<body>
+
+    <h1>我的候診進度</h1>
+
+    <hr>
+
+    <h2>我的預約</h2>
+
+    <p>
+        <strong>預約號碼：</strong>
+        {{ appointment_number }}
+    </p>
+
+    <p>
+        <strong>預約時間：</strong>
+        {{ appointment_time }}
+    </p>
+
+    <p>
+        <strong>目前狀態：</strong>
+        {{ status }}
+    </p>
+
+    <hr>
+
+    <h2>目前叫號</h2>
+
+    <h1>
+        {{ current_number }}
+    </h1>
+
+    <hr>
+
+    <p>
+        <strong>前方等待人數：</strong>
+        {{ waiting_ahead }} 人
+    </p>
+
+    <p>
+        <strong>預估等待時間：</strong>
+        約 {{ estimated_wait }} 分鐘
+    </p>
+
+    <p>
+        <strong>預計看診時間：</strong>
+        約 {{ estimated_time }}
+    </p>
+
+    <hr>
+
+    <p>
+        系統每 5 秒更新一次候診資訊。
+    </p>
+
+    <script>
+
+        setTimeout(function () {
+            location.reload();
+        }, 5000);
+
+    </script>
+
+    <br>
+
+    <button onclick="location.href='/patient-home'">
+        回到患者首頁
+    </button>
+
+</body>
+
+</html>

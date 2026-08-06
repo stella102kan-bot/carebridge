@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+
+<head>
+    <meta charset="UTF-8">
+    <title>CareBridge - 處方資訊</title>
+</head>
+
+<body>
+
+<h1>患者歷史處方資訊</h1>
+
+<p>共有 {{ visits|length }} 筆紀錄</p>
+
+{% for visit in visits %}
+
+<hr>
+
+<h2>第 {{ loop.index }} 次看診</h2>
+
+<h3>{{ visit[1] }}</h3>
+
+<p><strong>身分證字號：</strong>{{ visit[2] }}</p>
+
+<p><strong>Patient ID：</strong>{{ visit[3] }}</p>
+
+<p><strong>看診日期：</strong>{{ visit[4] }}</p>
+
+<p><strong>看診日期：</strong>{{ visit[4] }}</p>
+
+<p><strong>預約號碼：</strong>{{ visit[5] }}</p>
+
+<p><strong>預約時間：</strong>{{ visit[6] }}</p>
+
+<p><strong>就診原因：</strong>{{ visit[7] or "未提供" }}</p>
+
+<br>
+
+<button onclick="location.href='/hospital-prescription-detail/{{ visit[0] }}'">
+    查看詳細資料
+</button>
+
+{% endfor %}
+
+<hr>
+
+<button onclick="location.href='/hospital-prescription'">
+    查詢其他患者
+</button>
+
+<br><br>
+
+<button onclick="location.href='/hospital'">
+    回到醫院工作平台
+</button>
+
+</body>
+</html>

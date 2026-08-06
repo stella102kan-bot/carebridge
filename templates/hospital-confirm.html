@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+
+<head>
+    <meta charset="UTF-8">
+    <title>確認報到</title>
+</head>
+
+<body>
+
+    <h1>確認預約資訊</h1>
+
+    <p>
+    <strong>患者姓名：</strong>
+    {{ visit[1] }}
+    </p>
+
+    <p>
+        <strong>Patient ID：</strong>
+        {{ visit[2] }}
+    </p>
+
+    <p>
+        <strong>身分證字號：</strong>
+        {{ visit[3] }}
+    </p>
+
+    <p>
+        <strong>預約號碼：</strong>
+        {{ visit[4] }}
+    </p>
+
+    <p>
+        <strong>預約時間：</strong>
+        {{ visit[5] }}
+    </p>
+
+    <p>
+        <strong>本次症狀：</strong>
+        {{ visit[6] }}
+    </p>
+
+    <p>
+        <strong>目前狀態：</strong>
+        {{ visit[7] }}
+    </p>
+
+    <hr>
+
+    <form
+        action="/hospital-checkin-confirm"
+        method="POST"
+    >
+
+        <input
+            type="hidden"
+            name="id_number"
+            value="{{ id_number }}"
+        >
+
+        <button type="submit">
+            確認報到
+        </button>
+
+    </form>
+
+    <br>
+
+    <button onclick="location.href='/hospital-checkin'">
+        返回
+    </button>
+
+</body>
+
+</html>

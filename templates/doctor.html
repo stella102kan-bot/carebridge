@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+
+<head>
+    <meta charset="UTF-8">
+    <title>CareBridge - 醫生 Dashboard</title>
+</head>
+
+<body>
+
+    <h1>歡迎，{{ doctor_name }} 醫師！</h1>
+
+    <hr>
+
+    <h2>今日待處理患者</h2>
+
+    {% if waiting_patients %}
+
+    <table border="1" cellpadding="10">
+
+        <tr>
+            <th>順序</th>
+            <th>姓名</th>
+            <th>Patient ID</th>
+            <th>預約號碼</th>
+            <th>預約時間</th>
+            <th>狀態</th>
+            <th>操作</th>
+        </tr>
+
+        {% for patient in waiting_patients %}
+
+        <tr>
+
+            <td>{{ loop.index }}</td>
+
+            <td>{{ patient[1] }}</td>
+
+            <td>{{ patient[2] }}</td>
+
+            <td>{{ patient[4] }}</td>
+
+            <td>{{ patient[5] }}</td>
+
+            <td>{{ patient[3] }}</td>
+
+            <td>
+
+                {% if patient[3] == "已報到" %}
+
+                <form
+                    action="/doctor-start/{{ patient[0] }}"
+                    method="POST"
+                    style="display:inline;"
+                >
+                    <button type="submit">
+                        開始看診
+                    </button>
+                </form>
+
+                {% elif patient[3] == "看診中" %}
+
+                <button
+                    onclick="location.href='/doctor-consult/{{ patient[0] }}'"
+                >
+                    回到看診
+                </button>
+
+                {% elif patient[3] == "已預約" %}
+
+                <button
+                    onclick="location.href='/doctor-patient/{{ patient[2] }}'">
+                    查看病歷
+                </button>
+
+                <button disabled>
+                    等待患者報到
+                </button>
+
+                {% endif %}
+
+            </td>
+
+        </tr>
+
+        {% endfor %}
+
+    </table>
+
+    {% else %}
+
+    <p>今日目前沒有待處理患者。</p>
+
+    {% endif %}
+
+
+    <hr>
+
+    <h2>今日已完成患者</h2>
+
+    {% if completed_patients %}
+
+    <table border="1" cellpadding="10">
+
+        <tr>
+            <th>姓名</th>
+            <th>Patient ID</th>
+            <th>預約號碼</th>
+            <th>預約時間</th>
+            <th>完成時間</th>
+            <th>操作</th>
+        </tr>
+
+        {% for patient in completed_patients %}
+
+        <tr>
+
+            <td>{{ patient[1] }}</td>
+
+            <td>{{ patient[2] }}</td>
+
+            <td>{{ patient[3] }}</td>
+
+            <td>{{ patient[4] }}</td>
+
+            <td>{{ patient[5] }}</td>
+
+            <td>
+
+                <button
+                    onclick="location.href='/doctor-patient/{{ patient[2] }}'"
+                >
+                    查看紀錄
+                </button>
+
+            </td>
+
+        </tr>
+
+        {% endfor %}
+
+    </table>
+
+    {% else %}
+
+    <p>今日目前沒有已完成患者。</p>
+
+    {% endif %}
+
+
+    <br>
+
+    <button onclick="location.href='/doctor-logout'">
+        醫生登出
+    </button>
+
+    <button onclick="location.href='/'">
+        回到首頁
+    </button>
+
+</body>
+
+</html>

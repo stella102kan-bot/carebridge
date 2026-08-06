@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+
+<head>
+    <meta charset="UTF-8">
+    <title>CareBridge - 處方詳細資訊</title>
+</head>
+
+<body>
+
+<h1>處方詳細資訊</h1>
+
+<hr>
+
+<h2>{{ visit[1] }}</h2>
+
+<p><strong>身分證字號：</strong>{{ visit[2] }}</p>
+
+<p><strong>Patient ID：</strong>{{ visit[3] }}</p>
+
+<p><strong>看診日期：</strong>{{ visit[4] }}</p>
+
+<p><strong>預約號碼：</strong>{{ visit[5] }}</p>
+
+<p><strong>預約時間：</strong>{{ visit[6] }}</p>
+
+<hr>
+
+<h3>本次就診原因／症狀</h3>
+<p>{{ visit[7] or "未提供" }}</p>
+
+<h3>醫師診斷</h3>
+<p>{{ visit[8] or "尚未填寫" }}</p>
+
+<h3>醫師處方</h3>
+<p>{{ visit[9] or "尚未開立" }}</p>
+
+<h3>完成時間</h3>
+<p>{{ visit[10] or "未提供" }}</p>
+
+<h3>目前狀態</h3>
+<p>{{ visit[11] }}</p>
+
+<hr>
+
+<button onclick="history.back()">
+    ← 回上一頁
+</button>
+
+
+</body>
+</html>

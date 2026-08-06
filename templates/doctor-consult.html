@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>CareBridge - 醫生看診</title>
+</head>
+
+<body>
+
+    <h1>醫生看診</h1>
+
+    <hr>
+
+    <h2>{{ visit[2] }}</h2>
+
+    <p>
+        <strong>Patient ID：</strong>
+        {{ visit[1] }}
+    </p>
+
+    <p>
+        <strong>出生日期：</strong>
+        {{ visit[3] or "未提供" }}
+    </p>
+
+    <p>
+        <strong>年齡：</strong>
+        {{ age }} 歲
+    </p>
+
+    <p>
+        <strong>性別：</strong>
+        {{ visit[4] or "未提供" }}
+    </p>
+
+    <p>
+        <strong>電話：</strong>
+        {{ visit[5] or "未提供" }}
+    </p>
+
+    <hr>
+
+    <h3>長期健康資料</h3>
+
+    <p>
+        <strong>慢性病：</strong>
+        {{ visit[6] or "無資料" }}
+    </p>
+
+    <p>
+        <strong>過敏史：</strong>
+        {{ visit[7] or "無資料" }}
+    </p>
+
+    <p>
+        <strong>目前用藥：</strong>
+        {{ visit[8] or "無資料" }}
+    </p>
+
+    <p>
+        <strong>家族疾病史：</strong>
+        {{ visit[9] or "無資料" }}
+    </p>
+
+    <hr>
+
+    <h3>本次就診</h3>
+
+    <p>
+        <strong>預約號碼：</strong>
+        {{ visit[12] }}
+    </p>
+
+    <p>
+        <strong>本次症狀／就診原因：</strong>
+    </p>
+
+    <p>
+        {{ visit[10] or "未提供" }}
+    </p>
+
+    <p>
+        <strong>目前狀態：</strong>
+        {{ visit[11] }}
+    </p>
+
+    <hr>
+
+    <h3>診斷與處方</h3>
+
+    <form
+        action="/doctor-complete/{{ visit[0] }}"
+        method="POST"
+    >
+
+        <p><strong>診斷結果</strong></p>
+
+        <textarea
+            name="diagnosis"
+            rows="4"
+            cols="60"
+            placeholder="請輸入診斷結果..."
+            required
+        ></textarea>
+
+        <br><br>
+
+        <p><strong>處方</strong></p>
+
+        <textarea
+            name="prescription"
+            rows="6"
+            cols="60"
+            placeholder="請輸入本次處方..."
+            required
+        ></textarea>
+
+        <br><br>
+
+        <button type="submit">
+            傳送至醫院端並完成看診
+        </button>
+
+    </form>
+
+    <br>
+
+    <button onclick="location.href='/doctor-home'">
+        回到醫生首頁
+    </button>
+
+</body>
+
+</html>

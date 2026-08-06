@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+
+<head>
+    <meta charset="UTF-8">
+    <title>CareBridge - 我要到這間醫院看診</title>
+</head>
+
+<body>
+
+    <h1>我要到這間醫院看診</h1>
+
+    <p>
+        請輸入這次看診的主要原因或目前症狀。
+    </p>
+
+    <form action="/visit" method="POST">
+
+        <label>本次症狀／就診原因：</label>
+
+        <br><br>
+
+        <textarea
+            name="chief_complaint"
+            rows="6"
+            cols="50"
+            placeholder="例如：最近三天一直咳嗽、發燒"
+            required
+        ></textarea>
+
+        <br><br>
+
+        <button type="submit">
+            確認預約
+        </button>
+
+    </form>
+
+    <br>
+
+    <button onclick="location.href='/patient-home'">
+        回到患者首頁
+    </button>
+
+</body>
+
+</html>

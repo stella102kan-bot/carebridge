@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+
+<head>
+    <meta charset="UTF-8">
+    <title>CareBridge - 醫生登入</title>
+</head>
+
+<body>
+
+    <h1>醫生登入</h1>
+
+    <form action="/doctor-login" method="POST">
+
+        <label>帳號：</label>
+        <input type="text" name="username" required>
+
+        <br><br>
+
+        <label>密碼：</label>
+        <input type="password" name="password" required>
+
+        <br><br>
+
+        <button type="submit">
+            登入
+        </button>
+
+    </form>
+
+    <br>
+
+    <button onclick="location.href='/'">
+        回到首頁
+    </button>
+
+</body>
+
+</html>

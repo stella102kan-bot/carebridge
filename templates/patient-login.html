@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CareBridge - 患者登入</title>
+</head>
+
+<body>
+
+    <h1>CareBridge 患者登入</h1>
+
+    <form action="/patient" method="POST">
+
+        <label>身分證字號：</label>
+
+        <input
+            type="text"
+            name="id_number"
+            maxlength="10"
+            required
+        >
+
+        <br><br>
+
+        <button type="submit">
+            登入
+        </button>
+
+    </form>
+
+    <br>
+
+    <p>第一次使用 CareBridge？</p>
+
+    <button onclick="location.href='/register'">
+        首次註冊
+    </button>
+
+    <br><br>
+
+    <button onclick="location.href='/'">
+        回到首頁
+    </button>
+
+</body>
+
+</html>

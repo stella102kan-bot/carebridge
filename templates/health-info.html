@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>CareBridge - 我的健康資料</title>
+</head>
+
+<body>
+
+    <h1>我的健康資料</h1>
+
+    <p>以下資料是您的長期健康資訊。</p>
+
+    <form action="/health-info" method="POST">
+
+        <label>慢性病：</label>
+        <br>
+
+        <input
+            type="text"
+            name="disease"
+            value="{{ disease }}"
+            placeholder="例如：糖尿病、高血壓，沒有請填無"
+        >
+
+        <br><br>
+
+        <label>過敏史：</label>
+        <br>
+
+        <input
+            type="text"
+            name="allergy"
+            value="{{ allergy }}"
+            placeholder="例如：青黴素，沒有請填無"
+        >
+
+        <br><br>
+
+        <label>目前用藥：</label>
+        <br>
+
+        <input
+            type="text"
+            name="medication"
+            value="{{ medication }}"
+            placeholder="例如：降血壓藥，沒有請填無"
+        >
+
+        <br><br>
+
+        <label>家族疾病史：</label>
+        <br>
+
+        <textarea
+            name="family_history"
+            rows="5"
+            cols="50"
+            placeholder="例如：父親有高血壓，母親有糖尿病；沒有請填無"
+        >{{ family_history }}</textarea>
+
+        <br><br>
+
+        <button type="submit">
+            儲存健康資料
+        </button>
+
+    </form>
+
+    <br>
+
+    <button onclick="location.href='/patient-home'">
+        回到患者首頁
+    </button>
+
+</body>
+
+</html>
