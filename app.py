@@ -3450,6 +3450,9 @@ def my_queue():
         timedelta(minutes=estimated_wait)
     ).strftime("%H:%M")
 
+    print("DEBUG Taiwan time:", taiwan_time)
+    print("DEBUG estimated time:", estimated_time)
+
     conn.close()
 
     return render_template(
