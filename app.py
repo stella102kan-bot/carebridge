@@ -973,6 +973,9 @@ def doctor_complete(visit_id):
 
     cursor = conn.cursor()
 
+    # -------------------------
+    # 檢查這筆看診是否存在
+    # -------------------------
     cursor.execute("""
         SELECT status
         FROM visits
@@ -983,8 +986,18 @@ def doctor_complete(visit_id):
 
     if not visit:
         conn.close()
-        return "找不到這筆就診資料"
 
+        return """
+        <h1>找不到這筆就診資料</h1>
+
+        <button onclick="location.href='/doctor-home'">
+            回到醫生首頁
+        </button>
+        """
+
+    # -------------------------
+    # 確認目前狀態是「看診中」
+    # -------------------------
     if visit[0] != "看診中":
         conn.close()
 
@@ -998,6 +1011,9 @@ def doctor_complete(visit_id):
         </button>
         """
 
+    # -------------------------
+    # 更新本次看診資料
+    # -------------------------
     cursor.execute("""
         UPDATE visits
         SET
@@ -1013,7 +1029,9 @@ def doctor_complete(visit_id):
         visit_id
     ))
 
+    # -------------------------
     # 取得本次就診資料
+    # -------------------------
     cursor.execute("""
         SELECT
             patients.patient_id,
@@ -1031,76 +1049,191 @@ def doctor_complete(visit_id):
 
     visit_info = cursor.fetchone()
 
-    if visit_info:
-        patient_id = visit_info[0]
-        chronic_disease = visit_info[1]
-        visit_date = visit_info[2]
-        chief_complaint = visit_info[3]
-        diagnosis = visit_info[4]
-        prescription = visit_info[5]
-        status = "finished"
+    if not visit_info:
+        conn.close()
 
+        return """
+        <h1>找不到患者資料</h1>
+
+        <button onclick="location.href='/doctor-home'">
+            回到醫生首頁
+        </button>
+        """
+
+    patient_id = visit_info[0]
+    chronic_disease = visit_info[1]
+    visit_date = visit_info[2]
+    chief_complaint = visit_info[3]
+    diagnosis = visit_info[4]
+    prescription = visit_info[5]
+
+    # FHIR Encounter 使用 finished
+    status = "finished"
+
+    print("================================")
+    print("Doctor complete")
+    print("visit_id:", visit_id)
+    print("patient_id:", patient_id)
+    print("diagnosis:", diagnosis)
+    print("prescription:", prescription)
+    print("================================")
+
+    # -------------------------
+    # 查詢 FHIR Patient
+    # -------------------------
     search_url = (
         "https://hapi.fhir.org/baseR4/Patient"
         "?identifier=https://carebridge.example/patient-id|"
         + patient_id
     )
 
-    response = requests.get(
-        search_url,
-        headers={"Accept": "application/fhir+json"},
-        timeout=60
-    )
+    print("FHIR Patient search URL:", search_url)
 
-    if response.status_code != 200:
+    try:
+
+        response = requests.get(
+            search_url,
+            headers={
+                "Accept": "application/fhir+json"
+            },
+            timeout=30
+        )
+
+    except requests.RequestException as e:
+
         conn.close()
+
+        print("FHIR Server connection error:", e)
 
         return f"""
         <h1>看診完成失敗</h1>
 
         <p>無法連線至 FHIR Server。</p>
 
-        <p>FHIR Server 回應狀態碼：{response.status_code}</p>
+        <p>錯誤原因：</p>
+
+        <pre>{e}</pre>
 
         <button onclick="location.href='/doctor-home'">
             回到醫生首頁
         </button>
         """
 
+    # -------------------------
+    # 檢查 FHIR Server 回應
+    # -------------------------
+    if response.status_code != 200:
+
+        conn.close()
+
+        print(
+            "FHIR Server status code:",
+            response.status_code
+        )
+
+        return f"""
+        <h1>看診完成失敗</h1>
+
+        <p>FHIR Server 回應錯誤。</p>
+
+        <p>
+            FHIR Server 回應狀態碼：
+            {response.status_code}
+        </p>
+
+        <button onclick="location.href='/doctor-home'">
+            回到醫生首頁
+        </button>
+        """
+
+    # -------------------------
+    # 解析 FHIR Patient 搜尋結果
+    # -------------------------
     result = response.json()
 
+    print("FHIR Patient search result:")
+    print(result)
+
     if result.get("total", 0) == 0:
+
         conn.close()
+
+        print(
+            "找不到 FHIR Patient，"
+            "patient_id =",
+            patient_id
+        )
 
         return f"""
         <h1>看診完成失敗</h1>
 
         <p>找不到這位患者的 FHIR Patient 資料。</p>
 
-        <p>患者 ID：{patient_id}</p>
+        <p>
+            CareBridge Patient ID：
+            {patient_id}
+        </p>
 
-        <p>請確認患者是否已建立 FHIR Patient 資料。</p>
+        <p>
+            請確認患者是否已建立 FHIR Patient 資料。
+        </p>
 
         <button onclick="location.href='/doctor-home'">
             回到醫生首頁
         </button>
         """
 
-    fhir_patient_id = result["entry"][0]["resource"]["id"]
-
-    print("FHIR Patient ID:", fhir_patient_id)
-
-    encounter = build_encounter_fhir(
-
-    print(encounter)
-
-    encounter_id, encounter_response = upload_or_update_resource(
-        "Encounter",
-        encounter,
-        "https://carebridge.example/encounter",
-        patient_id + "-" + str(visit_id)
+    # -------------------------
+    # 取得 FHIR Patient ID
+    # -------------------------
+    fhir_patient_id = (
+        result["entry"][0]["resource"]["id"]
     )
 
+    print(
+        "FHIR Patient ID:",
+        fhir_patient_id
+    )
+
+    # -------------------------
+    # 建立 Encounter
+    # -------------------------
+    encounter = build_encounter_fhir(
+        fhir_patient_id,
+        patient_id,
+        visit_id,
+        visit_date,
+        chief_complaint,
+        diagnosis,
+        prescription,
+        status
+    )
+
+    print("Encounter:")
+    print(encounter)
+
+    encounter_id, encounter_response = (
+        upload_or_update_resource(
+            "Encounter",
+            encounter,
+            "https://carebridge.example/encounter",
+            patient_id + "-" + str(visit_id)
+        )
+    )
+
+    print(
+        "Encounter ID:",
+        encounter_id
+    )
+
+    print(
+        "Encounter 狀態碼:",
+        encounter_response.status_code
+    )
+
+    # -------------------------
+    # 建立本次診斷 Condition
+    # -------------------------
     condition = build_condition_fhir(
         fhir_patient_id,
         patient_id,
@@ -1108,49 +1241,93 @@ def doctor_complete(visit_id):
         diagnosis
     )
 
-    condition_id, condition_response = upload_or_update_resource(
-        "Condition",
-        condition,
-        "https://carebridge.example/condition",
-        patient_id + "-" + str(visit_id)
+    condition_id, condition_response = (
+        upload_or_update_resource(
+            "Condition",
+            condition,
+            "https://carebridge.example/condition",
+            patient_id + "-" + str(visit_id)
+        )
     )
 
-    # 上傳慢性病（若有）
+    print(
+        "Condition ID:",
+        condition_id
+    )
+
+    print(
+        "Condition 狀態碼:",
+        condition_response.status_code
+    )
+
+    # -------------------------
+    # 上傳慢性病 Condition
+    # -------------------------
     if chronic_disease:
 
-        chronic_condition = build_chronic_condition_fhir(
-            fhir_patient_id,
-            patient_id,
-            chronic_disease
+        chronic_condition = (
+            build_chronic_condition_fhir(
+                fhir_patient_id,
+                patient_id,
+                chronic_disease
+            )
         )
 
-        chronic_condition_id, chronic_condition_response = upload_or_update_resource(
+        (
+            chronic_condition_id,
+            chronic_condition_response
+        ) = upload_or_update_resource(
             "Condition",
             chronic_condition,
             "https://carebridge.example/chronic-condition",
             patient_id
         )
 
-        print("Chronic Condition ID:", chronic_condition_id)
-        print("Chronic Condition 狀態碼:", chronic_condition_response.status_code)
+        print(
+            "Chronic Condition ID:",
+            chronic_condition_id
+        )
 
-    medication_request = build_medication_request_fhir(
-        fhir_patient_id,
-        patient_id,
-        visit_id,
-        prescription
+        print(
+            "Chronic Condition 狀態碼:",
+            chronic_condition_response.status_code
+        )
+
+    # -------------------------
+    # 建立 MedicationRequest
+    # -------------------------
+    medication_request = (
+        build_medication_request_fhir(
+            fhir_patient_id,
+            patient_id,
+            visit_id,
+            prescription
+        )
     )
 
-    medication_request_id, medication_request_response = upload_or_update_resource(
+    (
+        medication_request_id,
+        medication_request_response
+    ) = upload_or_update_resource(
         "MedicationRequest",
         medication_request,
         "https://carebridge.example/medication-request",
         patient_id + "-" + str(visit_id)
     )
 
-    print("MedicationRequest ID:", medication_request_id)
-    print("MedicationRequest 狀態碼:", medication_request_response.status_code)
+    print(
+        "MedicationRequest ID:",
+        medication_request_id
+    )
 
+    print(
+        "MedicationRequest 狀態碼:",
+        medication_request_response.status_code
+    )
+
+    # -------------------------
+    # 儲存資料
+    # -------------------------
     conn.commit()
     conn.close()
 
