@@ -2550,12 +2550,6 @@ def appointment_success(appointment_number):
     <strong>本次症狀：</strong>
         {visit[4]}
 
-        <br><br>
-
-        <strong>AI 症狀整理：</strong>
-        <br>
-        {visit[5] or "尚未整理"}
-
     <p>
         <strong>預約狀態：</strong>
         {my_status}
