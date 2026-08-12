@@ -1052,22 +1052,45 @@ def doctor_complete(visit_id):
         timeout=60
     )
 
-    if response.status_code == 200:
-        result = response.json()
+    if response.status_code != 200:
+        conn.close()
 
-        if result.get("total", 0) > 0:
-            fhir_patient_id = result["entry"][0]["resource"]["id"]
+        return f"""
+        <h1>看診完成失敗</h1>
+
+        <p>無法連線至 FHIR Server。</p>
+
+        <p>FHIR Server 回應狀態碼：{response.status_code}</p>
+
+        <button onclick="location.href='/doctor-home'">
+            回到醫生首頁
+        </button>
+        """
+
+    result = response.json()
+
+    if result.get("total", 0) == 0:
+        conn.close()
+
+        return f"""
+        <h1>看診完成失敗</h1>
+
+        <p>找不到這位患者的 FHIR Patient 資料。</p>
+
+        <p>患者 ID：{patient_id}</p>
+
+        <p>請確認患者是否已建立 FHIR Patient 資料。</p>
+
+        <button onclick="location.href='/doctor-home'">
+            回到醫生首頁
+        </button>
+        """
+
+    fhir_patient_id = result["entry"][0]["resource"]["id"]
+
+    print("FHIR Patient ID:", fhir_patient_id)
 
     encounter = build_encounter_fhir(
-        fhir_patient_id,
-        patient_id,
-        visit_id,
-        visit_date,
-        chief_complaint,
-        diagnosis,
-        prescription,
-        status
-    )
 
     print(encounter)
 
