@@ -3445,6 +3445,11 @@ def my_queue():
 
     taiwan_time = datetime.now(ZoneInfo("Asia/Taipei"))
 
+    print("========== TIME DEBUG ==========")
+    print("Server datetime.now():", datetime.now())
+    print("Taiwan time:", taiwan_time)
+    print("================================")
+
     estimated_time = (
         taiwan_time +
         timedelta(minutes=estimated_wait)
