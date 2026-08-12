@@ -3443,12 +3443,11 @@ def my_queue():
         waiting_ahead * average_duration
     )
 
+    print("🔥🔥🔥 VISIT TIME CODE IS RUNNING 🔥🔥🔥")
+
     taiwan_time = datetime.now(ZoneInfo("Asia/Taipei"))
 
-    print("========== TIME DEBUG ==========")
-    print("Server datetime.now():", datetime.now())
-    print("Taiwan time:", taiwan_time)
-    print("================================")
+    print("🔥 Taiwan time =", taiwan_time)
 
     estimated_time = (
         taiwan_time +
