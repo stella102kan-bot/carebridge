@@ -1,6 +1,7 @@
 #from urllib import response
 from flask import Flask, render_template, request, session, redirect
 from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
 from urllib.parse import quote
 import uuid
 import sqlite3
@@ -3442,8 +3443,10 @@ def my_queue():
         waiting_ahead * average_duration
     )
 
+    taiwan_time = datetime.now(ZoneInfo("Asia/Taipei"))
+
     estimated_time = (
-        datetime.now() +
+        taiwan_time +
         timedelta(minutes=estimated_wait)
     ).strftime("%H:%M")
 
