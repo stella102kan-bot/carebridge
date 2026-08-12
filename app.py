@@ -1959,8 +1959,10 @@ def visit():
 
     appointment_number = last_number + 1
 
-    # 暫時直接記錄目前時間
-    appointment_time = datetime.now().strftime("%H:%M")
+    # 使用台灣時間記錄預約時間
+    appointment_time = datetime.now(
+        ZoneInfo("Asia/Taipei")
+    ).strftime("%H:%M")
 
     # 建立預約
     cursor.execute("""
