@@ -2394,8 +2394,7 @@ def appointment_success(appointment_number):
             appointment_number,
             appointment_time,
             status,
-            chief_complaint,
-            ai_summary
+            chief_complaint
         FROM visits
         WHERE patient_id = ?
         AND visit_date = ?
@@ -2415,13 +2414,22 @@ def appointment_success(appointment_number):
 
     visit_id = visit[0]
     my_number = visit[1]
+    appointment_time = visit[2]
     my_status = visit[3]
+    chief_complaint = visit[4]
 
     # -------------------------
-    # 計算前方等待人數
+    # 預設值
     # -------------------------
 
     waiting_count = 0
+    estimated_wait = 0
+    current_number = "尚未叫號"
+    estimated_time = "尚未估算"
+
+    # -------------------------
+    # 已預約
+    # -------------------------
 
     if my_status == "已預約":
 
@@ -2451,9 +2459,26 @@ def appointment_success(appointment_number):
             earlier_reserved_count
         )
 
+        # 每位患者暫定 10 分鐘
+        estimated_wait = waiting_count * 10
+
+        # 台灣時間
+        taiwan_time = datetime.now(
+            ZoneInfo("Asia/Taipei")
+        )
+
+        estimated_time = (
+            taiwan_time +
+            timedelta(minutes=estimated_wait)
+        ).strftime("%H:%M")
+
+    # -------------------------
+    # 已報到
+    # -------------------------
+
     elif my_status == "已報到":
 
-        # 已經報到的人依預約號碼排序
+        # 已報到且預約號碼比我小的人
         cursor.execute("""
             SELECT COUNT(*)
             FROM visits
@@ -2464,7 +2489,7 @@ def appointment_success(appointment_number):
 
         earlier_checked_in = cursor.fetchone()[0]
 
-        # 如果目前有人正在看診，也算在前面
+        # 目前正在看診的人
         cursor.execute("""
             SELECT COUNT(*)
             FROM visits
@@ -2479,63 +2504,118 @@ def appointment_success(appointment_number):
             consulting_count
         )
 
+        # 每位患者暫定 10 分鐘
+        estimated_wait = waiting_count * 10
+
+        # 台灣時間
+        taiwan_time = datetime.now(
+            ZoneInfo("Asia/Taipei")
+        )
+
+        estimated_time = (
+            taiwan_time +
+            timedelta(minutes=estimated_wait)
+        ).strftime("%H:%M")
+
+    # -------------------------
+    # 看診中
+    # -------------------------
+
     elif my_status == "看診中":
 
         waiting_count = 0
+        estimated_wait = 0
 
-    else:
+        current_number = my_number
+
+        estimated_time = "目前正在看診"
+
+    # -------------------------
+    # 已完成
+    # -------------------------
+
+    elif my_status == "已完成":
+
         waiting_count = 0
+        estimated_wait = 0
+
+        # 已完成就代表這個號碼已經看診完畢
+        current_number = my_number
+
+        estimated_time = "看診已完成"
 
     # -------------------------
-    # 預估等待時間
-    # 暫定每位患者 10 分鐘
+    # 其他狀態
     # -------------------------
 
-    estimated_wait = waiting_count * 10
-
-    # -------------------------
-    # 目前叫號
-    # -------------------------
-
-    cursor.execute("""
-        SELECT appointment_number
-        FROM visits
-        WHERE visit_date = ?
-        AND status = '看診中'
-        ORDER BY visit_id DESC
-        LIMIT 1
-    """, (today,))
-
-    current_call = cursor.fetchone()
-
-    if current_call:
-        current_number = current_call[0]
     else:
 
-        cursor.execute("""
-            SELECT appointment_number
-            FROM visits
-            WHERE visit_date = ?
-            AND status = '已完成'
-            ORDER BY visit_id DESC
-            LIMIT 1
-        """, (today,))
-
-        completed_number = cursor.fetchone()
-
-        if completed_number:
-            current_number = completed_number[0]
-        else:
-            current_number = "尚未叫號"
+        waiting_count = 0
+        estimated_wait = 0
+        current_number = "尚未叫號"
+        estimated_time = "尚未估算"
 
     conn.close()
+
+    # -------------------------
+    # 已完成
+    # -------------------------
+
+    if my_status == "已完成":
+
+        return f"""
+        <h1>看診已完成！</h1>
+
+        <hr>
+
+        <h2>我的預約</h2>
+
+        <p>
+            <strong>預約號碼：</strong>
+            {my_number}
+        </p>
+
+        <p>
+            <strong>預約時間：</strong>
+            {appointment_time}
+        </p>
+
+        <p>
+            <strong>目前狀態：</strong>
+            已完成
+        </p>
+
+        <hr>
+
+        <h2>本次看診</h2>
+
+        <p>
+            <strong>看診狀態：</strong>
+            本次看診已完成
+        </p>
+
+        <p>
+            <strong>本次症狀：</strong>
+            {chief_complaint}
+        </p>
+
+        <hr>
+
+        <button onclick="location.href='/patient-home'">
+            回到患者首頁
+        </button>
+        """
+
+    # -------------------------
+    # 一般候診狀態
+    # -------------------------
 
     return f"""
     <h1>預約成功！</h1>
 
     <hr>
 
-    <h2>您的預約資訊</h2>
+    <h2>我的預約</h2>
 
     <p>
         <strong>預約號碼：</strong>
@@ -2544,15 +2624,17 @@ def appointment_success(appointment_number):
 
     <p>
         <strong>預約時間：</strong>
-        {visit[2]}
+        {appointment_time}
     </p>
 
-    <strong>本次症狀：</strong>
-        {visit[4]}
+    <p>
+        <strong>目前狀態：</strong>
+        {my_status}
+    </p>
 
     <p>
-        <strong>預約狀態：</strong>
-        {my_status}
+        <strong>本次症狀：</strong>
+        {chief_complaint}
     </p>
 
     <hr>
@@ -2572,6 +2654,11 @@ def appointment_success(appointment_number):
     <p>
         <strong>預估等待時間：</strong>
         約 {estimated_wait} 分鐘
+    </p>
+
+    <p>
+        <strong>預計看診時間：</strong>
+        約 {estimated_time}
     </p>
 
     <hr>
