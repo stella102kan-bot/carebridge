@@ -1970,10 +1970,9 @@ def visit():
             status,
             chief_complaint,
             appointment_number,
-            appointment_time,
-            ai_summary
+            appointment_time
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?)
     """, (
         patient_id,
         today,
