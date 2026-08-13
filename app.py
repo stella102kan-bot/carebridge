@@ -993,11 +993,8 @@ def doctor_complete(visit_id):
         "%Y-%m-%d %H:%M:%S"
     )
 
-    conn = sqlite3.connect(
-        "carebridge.db",
-        timeout=60
-    )
-
+    # 改成 PostgreSQL / get_db_connection()
+    conn = get_db_connection()
     cursor = conn.cursor()
 
     # -------------------------
