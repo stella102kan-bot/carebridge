@@ -4070,6 +4070,31 @@ def hospital():
         hospital_user=session["hospital_user"]
     )
 
+@app.route("/check-db")
+def check_db():
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    cursor.execute("""
+        SELECT
+            column_name,
+            is_identity,
+            column_default
+        FROM information_schema.columns
+        WHERE table_name = 'visits'
+        AND column_name = 'visit_id'
+    """)
+
+    result = cursor.fetchone()
+
+    conn.close()
+
+    return f"""
+    <h1>Database Check</h1>
+    <pre>{result}</pre>
+    """
+
 if __name__ == "__main__":
     init_db()
     app.run(
