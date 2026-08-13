@@ -1175,18 +1175,16 @@ def doctor_complete(visit_id):
     # -------------------------
     result = response.json()
 
+    print("================================")
     print("FHIR Patient search result:")
-    print(result)
+    print(json.dumps(result, indent=2, ensure_ascii=False))
+    print("FHIR Patient search total:", result.get("total"))
+    print("FHIR Patient search URL:", search_url)
+    print("================================")
 
     if result.get("total", 0) == 0:
 
         conn.close()
-
-        print(
-            "找不到 FHIR Patient，"
-            "patient_id =",
-            patient_id
-        )
 
         return f"""
         <h1>看診完成失敗</h1>
@@ -1199,8 +1197,16 @@ def doctor_complete(visit_id):
         </p>
 
         <p>
-            請確認患者是否已建立 FHIR Patient 資料。
+            FHIR 搜尋網址：
+            {search_url}
         </p>
+
+        <p>
+            FHIR 搜尋結果 total：
+            {result.get("total")}
+        </p>
+
+        <pre>{json.dumps(result, indent=2, ensure_ascii=False)}</pre>
 
         <button onclick="location.href='/doctor-home'">
             回到醫生首頁
