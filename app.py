@@ -2194,28 +2194,53 @@ def visit():
     ).strftime("%H:%M")
 
     # 建立預約
-    cursor.execute("""
-        INSERT INTO visits
-        (
+    try:
+
+        cursor.execute("""
+            INSERT INTO visits
+            (
+                patient_id,
+                visit_date,
+                status,
+                chief_complaint,
+                appointment_number,
+                appointment_time
+            )
+            VALUES (%s, %s, %s, %s, %s, %s)
+            RETURNING visit_id
+        """, (
             patient_id,
-            visit_date,
-            status,
+            today,
+            "已預約",
             chief_complaint,
             appointment_number,
-            appointment_time
-        )
-        VALUES (%s, %s, %s, %s, %s, %s)
-    """, (
-        patient_id,
-        today,
-        "已預約",
-        chief_complaint,
-        appointment_number,
-        appointment_time,
-    ))
+            appointment_time,
+        ))
 
-    conn.commit()
-    conn.close()
+        new_visit_id = cursor.fetchone()[0]
+
+        conn.commit()
+        conn.close()
+
+    except Exception as e:
+
+        conn.rollback()
+        conn.close()
+
+        return f"""
+        <h1>建立預約失敗</h1>
+
+        <p>PostgreSQL 錯誤：</p>
+
+        <pre>{e}</pre>
+
+        <p>Patient ID：{patient_id}</p>
+        <p>預約號碼：{appointment_number}</p>
+
+        <button onclick="location.href='/patient-home'">
+            回到患者首頁
+        </button>
+        """
 
     return redirect(
         f"/appointment-success/{appointment_number}"
