@@ -971,7 +971,7 @@ def doctor_complete(visit_id):
     cursor.execute("""
         SELECT status
         FROM visits
-        WHERE visit_id = ?
+        WHERE visit_id = %s
     """, (visit_id,))
 
     visit = cursor.fetchone()
@@ -1009,11 +1009,11 @@ def doctor_complete(visit_id):
     cursor.execute("""
         UPDATE visits
         SET
-            diagnosis = ?,
-            prescription = ?,
-            completed_at = ?,
+            diagnosis = %s,
+            prescription = %s,
+            completed_at = %s,
             status = '已完成'
-        WHERE visit_id = ?
+        WHERE visit_id = %s
     """, (
         diagnosis,
         prescription,
@@ -1036,7 +1036,7 @@ def doctor_complete(visit_id):
         FROM visits
         JOIN patients
             ON visits.patient_id = patients.patient_id
-        WHERE visits.visit_id = ?
+        WHERE visits.visit_id = %s
     """, (visit_id,))
 
     visit_info = cursor.fetchone()
@@ -2940,38 +2940,65 @@ def patient_fhir():
 
 @app.route("/send-fhir", methods=["POST"])
 def send_fhir():
+
     if "patient_id" not in session:
         return redirect("/patient")
 
-    conn = sqlite3.connect("carebridge.db")
+    # =========================
+    # 從 PostgreSQL 取得患者資料
+    # =========================
+
+    conn = get_db_connection()
     cursor = conn.cursor()
 
     cursor.execute("""
-        SELECT patient_id, name, birth_date, gender, phone,
-            disease, allergy, medication, family_history
+        SELECT
+            patient_id,
+            name,
+            birth_date,
+            gender,
+            phone,
+            disease,
+            allergy,
+            medication,
+            family_history
         FROM patients
-        WHERE patient_id = ?
+        WHERE patient_id = %s
     """, (session["patient_id"],))
 
     patient = cursor.fetchone()
+
+    cursor.close()
     conn.close()
 
     if not patient:
         return "找不到病患資料"
 
+    # =========================
+    # 建立 FHIR Patient
+    # =========================
+
     fhir_patient = build_patient_fhir(patient)
 
-    fhir_server_url = "https://hapi.fhir.org/baseR4/Patient"
+    fhir_server_url = (
+        "https://hapi.fhir.org/baseR4/Patient"
+    )
 
-    # 先找看看 Patient 是否已存在
+    # =========================
+    # 搜尋 Patient 是否已存在
+    # =========================
+
     search_url = (
         "https://hapi.fhir.org/baseR4/Patient"
-        "?identifier=https://carebridge.example/patient-id|"
-        + patient[0]
     )
 
     search_response = requests.get(
         search_url,
+        params={
+            "identifier":
+                "https://carebridge.example/patient-id|"
+                + patient[0]
+        },
         headers={
             "Accept": "application/fhir+json"
         },
@@ -2979,36 +3006,57 @@ def send_fhir():
     )
 
     if search_response.status_code != 200:
+
         return f"""
         <h1>FHIR Server 查詢失敗</h1>
-        <p>HTTP Status Code：{search_response.status_code}</p>
+
+        <p>
+            HTTP Status Code：
+            {search_response.status_code}
+        </p>
+
         <pre>{search_response.text}</pre>
 
         <button onclick="location.href='/patient-home'">
-            回到病患首頁
+            回到患者首頁
         </button>
         """
 
     search_result = search_response.json()
-    print(json.dumps(search_result, indent=2, ensure_ascii=False))
 
-    # -------------------------
-    # 取得 FHIR Patient ID
-    # -------------------------
+    print(
+        json.dumps(
+            search_result,
+            indent=2,
+            ensure_ascii=False
+        )
+    )
+
+    # =========================
+    # 建立 / 更新 Patient
+    # =========================
 
     if search_result.get("total", 0) > 0:
 
-        existing_patient = search_result["entry"][0]["resource"]
+        existing_patient = (
+            search_result["entry"][0]["resource"]
+        )
+
         fhir_patient_id = existing_patient["id"]
+
         fhir_patient["id"] = fhir_patient_id
 
-        update_url = f"https://hapi.fhir.org/baseR4/Patient/{fhir_patient_id}"
+        update_url = (
+            f"https://hapi.fhir.org/baseR4/"
+            f"Patient/{fhir_patient_id}"
+        )
 
         response = requests.put(
             update_url,
             json=fhir_patient,
             headers={
-                "Content-Type": "application/fhir+json"
+                "Content-Type":
+                    "application/fhir+json"
             },
             timeout=60
         )
@@ -3019,30 +3067,62 @@ def send_fhir():
             fhir_server_url,
             json=fhir_patient,
             headers={
-                "Content-Type": "application/fhir+json"
+                "Content-Type":
+                    "application/fhir+json"
             },
             timeout=60
         )
 
+    # =========================
+    # Patient 建立 / 更新失敗
+    # =========================
+
     if response.status_code not in [200, 201]:
+
         return f"""
         <h1>FHIR Patient 建立/更新失敗</h1>
-        <p>HTTP Status Code：{response.status_code}</p>
+
+        <p>
+            HTTP Status Code：
+            {response.status_code}
+        </p>
+
         <pre>{response.text}</pre>
 
         <button onclick="location.href='/patient-home'">
-            回到病患首頁
+            回到患者首頁
         </button>
         """
 
-    # 如果是新增 Patient，取得新的 FHIR ID
+    # =========================
+    # 新建立的 Patient 取得 FHIR ID
+    # =========================
+
     if search_result.get("total", 0) == 0:
+
         created_patient = response.json()
+
         fhir_patient_id = created_patient["id"]
 
-    # Condition 預設值
+    # ==================================================
+    # 預設顯示文字
+    # ==================================================
+
     condition_text = "沒有慢性病資料"
     condition_response_text = ""
+
+    allergy_text = "沒有過敏史資料"
+    allergy_response_text = ""
+
+    medication_text = "沒有長期用藥資料"
+    medication_response_text = ""
+
+    family_text = "沒有家族疾病史資料"
+    family_response_text = ""
+
+    # ==================================================
+    # 1. 慢性病 Condition
+    # ==================================================
 
     if patient[5]:
 
@@ -3052,192 +3132,252 @@ def send_fhir():
             patient[5]
         )
 
-    # 建立 FHIR AllergyIntolerance
-    allergy = None
-
-    if patient[6]:
-        allergy = build_allergy_fhir(
-            fhir_patient["id"],
-            patient[0],
-            patient[6]
-        )
-
-    # 建立 FHIR MedicationStatement
-    medication = None
-
-    if patient[7]:
-        medication = build_medication_fhir(
-            fhir_patient["id"],
-            patient[0],
-            patient[7]
-        )
-
-    # 建立 FHIR FamilyMemberHistory
-    family_history = None
-
-    if patient[8]:
-        family_history = build_family_history_fhir(
-            fhir_patient["id"],
-            patient[0],
-            patient[8]
-        )
-
-        condition_url = "https://hapi.fhir.org/baseR4/Condition"
-
-        search_condition_url = (
-            "https://hapi.fhir.org/baseR4/Condition"
-            "?subject=Patient/" + fhir_patient_id
-        )
-
-        search_condition = requests.get(
-            search_condition_url,
-            headers={
-                "Accept": "application/fhir+json"
-            },
-            timeout=60
-        )
-
-        condition_result = search_condition.json()
-
-        if condition_result.get("total", 0) > 0:
-            existing_condition = condition_result["entry"][0]["resource"]
-            condition["id"] = existing_condition["id"]
-
-            condition_response = requests.put(
-                f"https://hapi.fhir.org/baseR4/Condition/{condition['id']}",
-                json=condition,
-                headers={
-                    "Content-Type": "application/fhir+json"
-                },
-                timeout=60
+        condition_id, condition_response = (
+            upload_or_update_resource(
+                "Condition",
+                condition,
+                "https://carebridge.example/patient-id",
+                patient[0] + "-chronic-condition"
             )
-        else:
-            condition_response = requests.post(
-                condition_url,
-                json=condition,
-                headers={
-                    "Content-Type": "application/fhir+json"
-                },
-                timeout=60
-            )
+        )
 
-        condition_text = f"慢性病：{patient[5]}"
+        condition_text = (
+            f"慢性病：{patient[5]}"
+        )
+
         condition_response_text = f"""
-        <p>Condition HTTP Status Code：
-        {condition_response.status_code}</p>
+        <p>
+            Condition HTTP Status Code：
+            {condition_response.status_code}
+        </p>
 
         <pre>{condition_response.text}</pre>
         """
 
-        # -------------------------
-        # 建立 AllergyIntolerance（過敏史）
-        # -------------------------
+    # ==================================================
+    # 2. 過敏史 AllergyIntolerance
+    # ==================================================
 
-        allergy_text = "沒有過敏史資料"
-        allergy_response_text = ""
+    if patient[6]:
 
-        if patient[6]:
+        allergy = build_allergy_fhir(
+            fhir_patient_id,
+            patient[0],
+            patient[6]
+        )
 
-            allergy = build_allergy_fhir(
-                fhir_patient_id,
-                patient[0],
-                patient[6]
-            )
-
-            allergy_url = "https://hapi.fhir.org/baseR4/AllergyIntolerance"
-
-            allergy_identifier = (
-                "https://carebridge.example/patient-id|"
-                + patient[0]
-                + "-allergy"
-            )
-
-            allergy_id, allergy_response = upload_or_update_resource(
+        allergy_id, allergy_response = (
+            upload_or_update_resource(
                 "AllergyIntolerance",
                 allergy,
                 "https://carebridge.example/patient-id",
                 patient[0] + "-allergy"
             )
+        )
 
-            allergy_text = f"過敏史：{patient[6]}"
+        allergy_text = (
+            f"過敏史：{patient[6]}"
+        )
 
-            allergy_response_text = f"""
-            <p>AllergyIntolerance HTTP Status Code：
-            {allergy_response.status_code}</p>
+        allergy_response_text = f"""
+        <p>
+            AllergyIntolerance HTTP Status Code：
+            {allergy_response.status_code}
+        </p>
 
-            <pre>{allergy_response.text}</pre>
-            """
+        <pre>{allergy_response.text}</pre>
+        """
 
-        # -------------------------
-        # 建立 MedicationStatement（長期用藥）
-        # -------------------------
+    # ==================================================
+    # 3. 長期用藥 MedicationStatement
+    # ==================================================
 
-        medication_text = "沒有長期用藥資料"
-        medication_response_text = ""
+    if patient[7]:
 
-        if patient[7]:
+        medication = build_medication_fhir(
+            fhir_patient_id,
+            patient[0],
+            patient[7]
+        )
 
-            medication = build_medication_fhir(
-                fhir_patient_id,
-                patient[0],
-                patient[7]
-            )
-
-            medication_url = "https://hapi.fhir.org/baseR4/MedicationStatement"
-
-            medication_id, medication_response = upload_or_update_resource(
+        medication_id, medication_response = (
+            upload_or_update_resource(
                 "MedicationStatement",
                 medication,
                 "https://carebridge.example/patient-id",
                 patient[0] + "-medication"
             )
+        )
 
-            medication_text = f"長期用藥：{patient[7]}"
+        medication_text = (
+            f"長期用藥：{patient[7]}"
+        )
 
-            medication_response_text = f"""
-            <p>MedicationStatement HTTP Status Code：
-            {medication_response.status_code}</p>
+        medication_response_text = f"""
+        <p>
+            MedicationStatement HTTP Status Code：
+            {medication_response.status_code}
+        </p>
 
-            <pre>{medication_response.text}</pre>
-            """
+        <pre>{medication_response.text}</pre>
+        """
 
-        # -------------------------
-        # 建立 FamilyMemberHistory（家族疾病史）
-        # -------------------------
+    # ==================================================
+    # 4. 家族疾病史 FamilyMemberHistory
+    # ==================================================
 
-        family_text = "沒有家族疾病史資料"
-        family_response_text = ""
+    if patient[8]:
 
-        if patient[8]:
+        family = build_family_history_fhir(
+            fhir_patient_id,
+            patient[0],
+            patient[8]
+        )
 
-            family = build_family_history_fhir(
-                fhir_patient_id,
-                patient[0],
-                patient[8]
-            )
-
-            family_id, family_response = upload_or_update_resource(
+        family_id, family_response = (
+            upload_or_update_resource(
                 "FamilyMemberHistory",
                 family,
                 "https://carebridge.example/patient-id",
                 patient[0] + "-family-history"
             )
+        )
 
-            family_text = f"家族疾病史：{patient[8]}"
+        family_text = (
+            f"家族疾病史：{patient[8]}"
+        )
 
-            family_response_text = f"""
-            <p>FamilyMemberHistory HTTP Status Code：
-            {family_response.status_code}</p>
+        family_response_text = f"""
+        <p>
+            FamilyMemberHistory HTTP Status Code：
+            {family_response.status_code}
+        </p>
 
-            <pre>{family_response.text}</pre>
+        <pre>{family_response.text}</pre>
+        """
+
+    # ==================================================
+    # 5. 歷史看診資料
+    # ==================================================
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    cursor.execute("""
+        SELECT
+            visit_date,
+            diagnosis,
+            prescription
+        FROM visits
+        WHERE patient_id = %s
+        AND status = '已完成'
+        ORDER BY visit_date DESC
+    """, (patient[0],))
+
+    visits = cursor.fetchall()
+
+    cursor.close()
+    conn.close()
+
+    # ==================================================
+    # 上傳歷史診斷與處方
+    # ==================================================
+
+    visit_response_text = ""
+
+    for visit in visits:
+
+        visit_date = visit[0]
+        diagnosis = visit[1]
+        prescription = visit[2]
+
+        # -------------------------
+        # 診斷
+        # -------------------------
+
+        if diagnosis:
+
+            diagnosis_condition = (
+                build_condition_fhir(
+                    fhir_patient_id,
+                    patient[0],
+                    visit_date,
+                    diagnosis
+                )
+            )
+
+            diagnosis_id, diagnosis_response = (
+                upload_or_update_resource(
+                    "Condition",
+                    diagnosis_condition,
+                    "https://carebridge.example/visit-diagnosis",
+                    patient[0] + "-" + str(visit_date)
+                )
+            )
+
+            visit_response_text += f"""
+            <h3>診斷：{diagnosis}</h3>
+
+            <p>
+                Condition HTTP Status Code：
+                {diagnosis_response.status_code}
+            </p>
+
+            <pre>{diagnosis_response.text}</pre>
             """
+
+        # -------------------------
+        # 處方
+        # -------------------------
+
+        if prescription:
+
+            medication_request = (
+                build_medication_request_fhir(
+                    fhir_patient_id,
+                    patient[0],
+                    visit_date,
+                    prescription
+                )
+            )
+
+            medication_request_id, medication_request_response = (
+                upload_or_update_resource(
+                    "MedicationRequest",
+                    medication_request,
+                    "https://carebridge.example/visit-prescription",
+                    patient[0] + "-" + str(visit_date)
+                )
+            )
+
+            visit_response_text += f"""
+            <h3>處方：{prescription}</h3>
+
+            <p>
+                MedicationRequest HTTP Status Code：
+                {medication_request_response.status_code}
+            </p>
+
+            <pre>{medication_request_response.text}</pre>
+            """
+
+    # ==================================================
+    # 顯示結果
+    # ==================================================
 
     return f"""
     <h1>FHIR Server 傳送結果</h1>
 
-    <p>FHIR Patient ID：{fhir_patient_id}</p>
+    <p>
+        <strong>FHIR Patient ID：</strong>
+        {fhir_patient_id}
+    </p>
 
-    <p>Patient 已成功處理。</p>
+    <p>
+        Patient 已成功處理。
+    </p>
+
+    <hr>
 
     <h2>慢性病 Condition</h2>
 
@@ -3245,11 +3385,15 @@ def send_fhir():
 
     {condition_response_text}
 
+    <hr>
+
     <h2>過敏史（FHIR AllergyIntolerance）</h2>
 
     <p>{allergy_text}</p>
 
     {allergy_response_text}
+
+    <hr>
 
     <h2>長期用藥（FHIR MedicationStatement）</h2>
 
@@ -3257,16 +3401,24 @@ def send_fhir():
 
     {medication_response_text}
 
+    <hr>
+
     <h2>家族疾病史（FHIR FamilyMemberHistory）</h2>
 
     <p>{family_text}</p>
 
     {family_response_text}
 
+    <hr>
+
+    <h2>歷史看診資料</h2>
+
+    {visit_response_text}
+
     <br>
 
     <button onclick="location.href='/patient-home'">
-        回到病患首頁
+        回到患者首頁
     </button>
     """
 
@@ -3427,13 +3579,13 @@ def register():
     medication = request.form.get("medication")
 
     # 檢查身分證字號是否已註冊
-    conn = sqlite3.connect("carebridge.db")
+    conn = get_db_connection()
     cursor = conn.cursor()
 
     cursor.execute("""
         SELECT patient_id
         FROM patients
-        WHERE id_number = ?
+        WHERE id_number = %s
         LIMIT 1
     """, (id_number,))
 
@@ -3469,7 +3621,7 @@ def register():
             allergy,
             medication
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
     """, (
         patient_id,
         id_number,
@@ -3497,13 +3649,13 @@ def current_call():
 
     today = datetime.now().strftime("%Y-%m-%d")
 
-    conn = sqlite3.connect("carebridge.db")
+    conn = get_db_connection()
     cursor = conn.cursor()
 
     cursor.execute("""
         SELECT appointment_number
         FROM visits
-        WHERE visit_date = ?
+        WHERE visit_date = %s
         AND status = '看診中'
         ORDER BY started_at DESC
         LIMIT 1
@@ -3531,7 +3683,7 @@ def my_queue():
     patient_id = session["patient_id"]
     today = datetime.now().strftime("%Y-%m-%d")
 
-    conn = sqlite3.connect("carebridge.db")
+    conn = get_db_connection()
     cursor = conn.cursor()
 
     # 找到患者今天最新的一筆預約
@@ -3542,8 +3694,8 @@ def my_queue():
             appointment_time,
             status
         FROM visits
-        WHERE patient_id = ?
-        AND visit_date = ?
+        WHERE patient_id = %s
+        AND visit_date = %s
         ORDER BY visit_id DESC
         LIMIT 1
     """, (patient_id, today))
@@ -3576,7 +3728,7 @@ def my_queue():
         cursor.execute("""
             SELECT COUNT(*)
             FROM visits
-            WHERE visit_date = ?
+            WHERE visit_date = %s
             AND status IN ('已報到', '看診中')
         """, (today,))
 
@@ -3586,9 +3738,9 @@ def my_queue():
         cursor.execute("""
             SELECT COUNT(*)
             FROM visits
-            WHERE visit_date = ?
+            WHERE visit_date = %s
             AND status = '已預約'
-            AND appointment_number < ?
+            AND appointment_number < %s
         """, (today, appointment_number))
 
         earlier_reserved = cursor.fetchone()[0]
@@ -3603,9 +3755,9 @@ def my_queue():
         cursor.execute("""
             SELECT COUNT(*)
             FROM visits
-            WHERE visit_date = ?
+            WHERE visit_date = %s
             AND status = '已報到'
-            AND appointment_number < ?
+            AND appointment_number < %s
         """, (today, appointment_number))
 
         earlier_checked_in = cursor.fetchone()[0]
@@ -3613,7 +3765,7 @@ def my_queue():
         cursor.execute("""
             SELECT COUNT(*)
             FROM visits
-            WHERE visit_date = ?
+            WHERE visit_date = %s
             AND status = '看診中'
         """, (today,))
 
@@ -3637,7 +3789,7 @@ def my_queue():
     cursor.execute("""
         SELECT appointment_number
         FROM visits
-        WHERE visit_date = ?
+        WHERE visit_date = %s
         AND status = '看診中'
         ORDER BY started_at DESC
         LIMIT 1
@@ -3657,7 +3809,7 @@ def my_queue():
     cursor.execute("""
         SELECT started_at, completed_at
         FROM visits
-        WHERE visit_date = ?
+        WHERE visit_date = %s
         AND status = '已完成'
         AND started_at IS NOT NULL
         AND completed_at IS NOT NULL
@@ -3698,8 +3850,6 @@ def my_queue():
 
 
     taiwan_time = datetime.now(ZoneInfo("Asia/Taipei"))
-
-    print("🔥 Taiwan time =", taiwan_time)
 
     estimated_time = (
         taiwan_time +
@@ -3774,7 +3924,7 @@ def hospital_prescription():
 
     today = datetime.now().strftime("%Y-%m-%d")
 
-    conn = sqlite3.connect("carebridge.db")
+    conn = get_db_connection()
     cursor = conn.cursor()
 
     cursor.execute("""
@@ -3794,7 +3944,7 @@ def hospital_prescription():
         FROM visits
         JOIN patients
             ON visits.patient_id = patients.patient_id
-        WHERE patients.id_number = ?
+        WHERE patients.id_number = %s
         AND visits.status = '已完成'
         ORDER BY visits.visit_date DESC,
                 visits.visit_id DESC
@@ -3832,7 +3982,7 @@ def hospital_prescription_detail(visit_id):
     if "hospital_user" not in session:
         return redirect("/hospital-login")
 
-    conn = sqlite3.connect("carebridge.db")
+    conn = get_db_connection()
     cursor = conn.cursor()
 
     cursor.execute("""
@@ -3852,7 +4002,7 @@ def hospital_prescription_detail(visit_id):
     FROM visits
     JOIN patients
         ON visits.patient_id = patients.patient_id
-    WHERE visits.visit_id = ?
+    WHERE visits.visit_id = %s
 """, (visit_id,))
 
     visit = cursor.fetchone()
