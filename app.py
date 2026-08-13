@@ -8,10 +8,39 @@ import sqlite3
 import requests
 import json
 import os
+import psycopg
 
 
 app = Flask(__name__)
 app.secret_key = "carebridge-demo-secret"
+
+def get_db():
+    return psycopg.connect(
+        os.environ["DATABASE_URL"]
+    )
+
+@app.route("/test-db")
+def test_db():
+
+    try:
+        conn = get_db()
+        cursor = conn.cursor()
+
+        cursor.execute("SELECT 1")
+
+        result = cursor.fetchone()
+
+        cursor.close()
+        conn.close()
+
+        return f"PostgreSQL 連線成功！結果：{result}"
+
+    except Exception as e:
+
+        return f"""
+        <h1>PostgreSQL 連線失敗</h1>
+        <pre>{e}</pre>
+        """
 
 def build_chronic_condition_fhir(
     patient_fhir_id,
@@ -3726,7 +3755,6 @@ def my_queue():
         waiting_ahead * average_duration
     )
 
-    print("🔥🔥🔥 VISIT TIME CODE IS RUNNING 🔥🔥🔥")
 
     taiwan_time = datetime.now(ZoneInfo("Asia/Taipei"))
 
