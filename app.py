@@ -315,6 +315,8 @@ def upload_or_update_resource(resource_type, resource, identifier_system, identi
     # 不存在 -> POST 建立
     else:
 
+        resource.pop("id", None)
+
         response = requests.post(
             f"https://hapi.fhir.org/baseR4/{resource_type}",
             json=resource,
