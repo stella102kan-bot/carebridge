@@ -21,12 +21,25 @@
         <br><br>
 
         <textarea
+            id="chief_complaint"
             name="chief_complaint"
             rows="6"
             cols="50"
-            placeholder="例如：最近三天一直咳嗽、發燒"
+            placeholder="例如：最近三天一直咳嗽、發燒，越詳細越好，方便醫師了解病情。"
             required
         ></textarea>
+
+        <br><br>
+
+        <button
+            type="button"
+            id="voiceButton"
+            onclick="startVoiceInput()"
+        >
+            🎤 語音輸入
+        </button>
+
+        <span id="voiceStatus"></span>
 
         <br><br>
 
@@ -41,6 +54,121 @@
     <button onclick="location.href='/patient-home'">
         回到患者首頁
     </button>
+
+
+    <script>
+
+        function startVoiceInput() {
+
+            const textarea = document.getElementById("chief_complaint");
+            const button = document.getElementById("voiceButton");
+            const status = document.getElementById("voiceStatus");
+
+            // 檢查瀏覽器是否支援語音辨識
+            const SpeechRecognition =
+                window.SpeechRecognition ||
+                window.webkitSpeechRecognition;
+
+            if (!SpeechRecognition) {
+
+                alert(
+                    "您的瀏覽器不支援語音輸入，請使用 Google Chrome。"
+                );
+
+                return;
+            }
+
+            const recognition = new SpeechRecognition();
+
+            // 中文（台灣）
+            recognition.lang = "zh-TW";
+
+            // 不斷續辨識
+            recognition.continuous = false;
+
+            // 回傳辨識結果
+            recognition.interimResults = false;
+
+
+            // 開始辨識
+            recognition.onstart = function () {
+
+                button.innerText = "🔴 正在聆聽...";
+                status.innerText = " 請開始說話";
+
+            };
+
+
+            // 辨識完成
+            recognition.onresult = function (event) {
+
+                const transcript =
+                    event.results[0][0].transcript;
+
+                // 如果原本已經有文字，就在後面追加
+                if (textarea.value.trim() !== "") {
+
+                    textarea.value += "\n" + transcript;
+
+                } else {
+
+                    textarea.value = transcript;
+
+                }
+
+            };
+
+
+            // 辨識結束
+            recognition.onend = function () {
+
+                button.innerText = "🎤 語音輸入";
+                status.innerText = " ✓ 語音輸入完成";
+
+            };
+
+
+            // 發生錯誤
+            recognition.onerror = function (event) {
+
+                button.innerText = "🎤 語音輸入";
+
+                status.innerText = "";
+
+                console.log(
+                    "語音辨識錯誤：",
+                    event.error
+                );
+
+                if (event.error === "not-allowed") {
+
+                    alert(
+                        "請允許瀏覽器使用麥克風。"
+                    );
+
+                } else if (event.error === "no-speech") {
+
+                    alert(
+                        "沒有偵測到語音，請再試一次。"
+                    );
+
+                } else {
+
+                    alert(
+                        "語音辨識失敗，請再試一次。"
+                    );
+
+                }
+
+            };
+
+
+            // 開始語音辨識
+            recognition.start();
+
+        }
+
+    </script>
 
 </body>
 
