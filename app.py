@@ -2310,6 +2310,110 @@ def visit():
         f"/appointment-success/{appointment_number}"
     )
 
+@app.route("/medical-recommendation")
+def medical_recommendation():
+
+    if "patient_id" not in session:
+        return redirect("/patient")
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    # 取得目前有資料的醫療院所
+    cursor.execute("""
+        SELECT
+            facility_id,
+            name,
+            facility_type,
+            address,
+            specialties,
+            average_wait_minutes,
+            current_waiting_count,
+            available_slots
+        FROM medical_facilities
+        ORDER BY average_wait_minutes ASC
+    """)
+
+    facilities = cursor.fetchall()
+
+    conn.close()
+
+    if not facilities:
+        return """
+        <h1>目前沒有可推薦的醫療院所</h1>
+
+        <button onclick="location.href='/patient-home'">
+            回到患者首頁
+        </button>
+        """
+
+    result_html = """
+    <h1>醫療院所推薦</h1>
+
+    <p>
+        以下依目前預估等待時間由短至長排列。
+    </p>
+
+    <hr>
+    """
+
+    for index, facility in enumerate(facilities, start=1):
+
+        (
+            facility_id,
+            name,
+            facility_type,
+            address,
+            specialties,
+            average_wait,
+            waiting_count,
+            available_slots
+        ) = facility
+
+        result_html += f"""
+        <h2>第 {index} 推薦：{name}</h2>
+
+        <p>
+            <strong>院所類型：</strong>
+            {facility_type}
+        </p>
+
+        <p>
+            <strong>地址：</strong>
+            {address}
+        </p>
+
+        <p>
+            <strong>提供科別：</strong>
+            {specialties}
+        </p>
+
+        <p>
+            <strong>目前預估等待：</strong>
+            約 {average_wait} 分鐘
+        </p>
+
+        <p>
+            <strong>目前候診人數：</strong>
+            {waiting_count} 人
+        </p>
+
+        <p>
+            <strong>剩餘可掛號名額：</strong>
+            {available_slots} 人
+        </p>
+
+        <hr>
+        """
+
+    result_html += """
+    <button onclick="location.href='/patient-home'">
+        回到患者首頁
+    </button>
+    """
+
+    return result_html
+
 @app.route("/health-info", methods=["GET", "POST"])
 def health_info():
 
