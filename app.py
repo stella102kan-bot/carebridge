@@ -9,6 +9,7 @@ import requests
 import json
 import os
 import psycopg
+from math import radians, sin, cos, sqrt, atan2
 
 
 app = Flask(__name__)
@@ -528,6 +529,32 @@ def init_db():
     conn.commit()
     conn.close()
 
+def calculate_distance(lat1, lon1, lat2, lon2):
+    """
+    計算兩個經緯度座標之間的距離
+    回傳單位：公里
+    """
+
+    R = 6371.0
+
+    lat1 = radians(lat1)
+    lon1 = radians(lon1)
+    lat2 = radians(lat2)
+    lon2 = radians(lon2)
+
+    dlat = lat2 - lat1
+    dlon = lon2 - lon1
+
+    a = (
+        sin(dlat / 2) ** 2
+        + cos(lat1)
+        * cos(lat2)
+        * sin(dlon / 2) ** 2
+    )
+
+    c = 2 * atan2(sqrt(a), sqrt(1 - a))
+
+    return R * c
 
 # 首頁
 @app.route("/")
@@ -2319,12 +2346,12 @@ def visit():
             name,
             facility_type,
             address,
+            latitude,
+            longitude,
             specialties,
             average_wait_minutes,
-            current_waiting_count,
             available_slots
         FROM medical_facilities
-        ORDER BY average_wait_minutes ASC
     """)
 
     facilities = cursor.fetchall()
@@ -2349,20 +2376,82 @@ def visit():
     # 顯示推薦結果
     # -------------------------
 
-    facility_html = ""
+    recommended_facilities = []
 
-    for index, facility in enumerate(facilities, start=1):
+    for facility in facilities:
 
         (
             facility_id,
             name,
             facility_type,
             address,
+            latitude,
+            longitude,
             specialties,
             average_wait,
-            waiting_count,
             available_slots
         ) = facility
+
+        distance = calculate_distance(
+            patient_latitude,
+            patient_longitude,
+            latitude,
+            longitude
+        )
+
+        cursor.execute("""
+            SELECT COUNT(*)
+            FROM visits
+            WHERE facility_id = %s
+            AND visit_date = %s
+            AND status IN ('已預約', '已報到')
+        """, (
+            facility_id,
+            today
+        ))
+
+        waiting_count = cursor.fetchone()[0]
+
+        score = (
+            distance * 0.3
+            + average_wait * 0.4
+            + waiting_count * 0.2
+            - available_slots * 0.1
+        )
+
+        recommended_facilities.append({
+            "facility": facility,
+            "distance": distance,
+            "waiting_count": waiting_count,
+            "score": score
+        })
+
+        recommended_facilities.sort(
+            key=lambda x: x["score"]
+        )
+
+        facility_html = ""
+
+        for index, item in enumerate(
+            recommended_facilities,
+            start=1
+        ):
+
+            facility = item["facility"]
+            distance = item["distance"]
+            waiting_count = item["waiting_count"]
+
+            (
+                facility_id,
+                name,
+                facility_type,
+                address,
+                latitude,
+                longitude,
+                specialties,
+                average_wait,
+                available_slots
+            ) = facility
 
         facility_html += f"""
         <div>
@@ -2382,6 +2471,11 @@ def visit():
             <p>
                 <strong>提供科別：</strong>
                 {specialties}
+            </p>
+
+            <p>
+                <strong>距離：</strong>
+                約 {distance:.1f} 公里
             </p>
 
             <p>
