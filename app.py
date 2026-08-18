@@ -2285,6 +2285,9 @@ def visit():
         return render_template("visit.html")
 
     patient_id = session["patient_id"]
+    # 暫時使用測試位置
+    patient_latitude = 22.6273
+    patient_longitude = 120.3014
 
     # 取得本次症狀
     chief_complaint = request.form.get(
