@@ -468,8 +468,24 @@ def init_db():
             average_wait_minutes INTEGER DEFAULT 0,
             current_waiting_count INTEGER DEFAULT 0,
             available_slots INTEGER DEFAULT 0
+            daily_capacity INTEGER DEFAULT 20
         )
     """)
+
+    cursor.execute("""
+        SELECT column_name
+        FROM information_schema.columns
+        WHERE table_name = 'medical_facilities'
+        AND column_name = 'daily_capacity'
+    """)
+
+    daily_capacity_column = cursor.fetchone()
+
+    if not daily_capacity_column:
+        cursor.execute("""
+            ALTER TABLE medical_facilities
+            ADD COLUMN daily_capacity INTEGER DEFAULT 20
+        """)
     
     # =========================
     # 建立測試醫療院所
@@ -2353,8 +2369,9 @@ def visit():
             longitude,
             specialties,
             average_wait_minutes,
-            available_slots
+            daily_capacity
         FROM medical_facilities
+        ORDER BY average_wait_minutes ASC
     """)
 
     facilities = cursor.fetchall()
@@ -2612,8 +2629,7 @@ def select_facility():
             name,
             facility_type,
             average_wait_minutes,
-            current_waiting_count,
-            available_slots
+            daily_capacity
         FROM medical_facilities
         WHERE facility_id = %s
         LIMIT 1
@@ -2642,9 +2658,26 @@ def select_facility():
         facility_name,
         facility_type,
         average_wait,
-        waiting_count,
-        available_slots
+        daily_capacity
     ) = facility
+
+    cursor.execute("""
+        SELECT COUNT(*)
+        FROM visits
+        WHERE facility_id = %s
+        AND visit_date = %s
+        AND status IN ('已預約', '已報到', '看診中')
+    """, (
+        facility_id,
+        today
+    ))
+
+    booked_count = cursor.fetchone()[0]
+
+    available_slots = max(
+        daily_capacity - booked_count,
+        0
+    )
 
     # =========================
     # 檢查今天是否已有進行中的預約
@@ -2750,15 +2783,31 @@ def select_facility():
 
     visit_id = cursor.fetchone()[0]
 
-    # =========================
-    # 更新院所剩餘名額
-    # =========================
+    cursor.execute("""
+        SELECT COUNT(*)
+        FROM visits
+        WHERE facility_id = %s
+        AND visit_date = %s
+        AND status IN ('已預約', '已報到')
+    """, (
+        facility_id,
+        today
+    ))
+
+    waiting_count = cursor.fetchone()[0]
 
     cursor.execute("""
-        UPDATE medical_facilities
-        SET available_slots = available_slots - 1
+        SELECT COUNT(*)
+        FROM visits
         WHERE facility_id = %s
-    """, (facility_id,))
+        AND visit_date = %s
+        AND status IN ('已預約', '已報到')
+    """, (
+        facility_id,
+        today
+    ))
+
+    waiting_count = cursor.fetchone()[0]
 
     conn.commit()
     conn.close()
@@ -2900,11 +2949,55 @@ def medical_recommendation():
             name,
             facility_type,
             address,
+            latitude,
+            longitude,
             specialties,
             average_wait,
-            waiting_count,
-            available_slots
+            daily_capacity
         ) = facility
+
+        # -------------------------
+        # 計算目前候診人數
+        # -------------------------
+
+        cursor.execute("""
+            SELECT COUNT(*)
+            FROM visits
+            WHERE facility_id = %s
+            AND visit_date = %s
+            AND status IN ('已預約', '已報到')
+        """, (
+            facility_id,
+            today
+        ))
+
+        waiting_count = cursor.fetchone()[0]
+
+        # -------------------------
+        # 計算今天已使用的掛號名額
+        # -------------------------
+
+        cursor.execute("""
+            SELECT COUNT(*)
+            FROM visits
+            WHERE facility_id = %s
+            AND visit_date = %s
+            AND status IN ('已預約', '已報到', '看診中')
+        """, (
+            facility_id,
+            today
+        ))
+
+        booked_count = cursor.fetchone()[0]
+
+        # -------------------------
+        # 計算剩餘名額
+        # -------------------------
+
+        available_slots = max(
+            daily_capacity - booked_count,
+            0
+        )
 
         result_html += f"""
         <h2>第 {index} 推薦：{name}</h2>
