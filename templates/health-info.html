@@ -16,53 +16,103 @@
 
     <form action="/health-info" method="POST">
 
+        <!-- 慢性病 -->
         <label>慢性病：</label>
         <br>
 
         <input
             type="text"
+            id="disease"
             name="disease"
             value="{{ disease }}"
             placeholder="例如：糖尿病、高血壓，沒有請填無"
         >
 
+        <button
+            type="button"
+            onclick="startVoiceInput('disease', this)"
+        >
+            🎤
+        </button>
+
+        <span class="voice-status"></span>
+
         <br><br>
 
+
+        <!-- 過敏史 -->
         <label>過敏史：</label>
         <br>
 
         <input
             type="text"
+            id="allergy"
             name="allergy"
             value="{{ allergy }}"
             placeholder="例如：青黴素，沒有請填無"
         >
 
+        <button
+            type="button"
+            onclick="startVoiceInput('allergy', this)"
+        >
+            🎤
+        </button>
+
+        <span class="voice-status"></span>
+
         <br><br>
 
+
+        <!-- 目前用藥 -->
         <label>目前用藥：</label>
         <br>
 
         <input
             type="text"
+            id="medication"
             name="medication"
             value="{{ medication }}"
             placeholder="例如：降血壓藥，沒有請填無"
         >
 
+        <button
+            type="button"
+            onclick="startVoiceInput('medication', this)"
+        >
+            🎤
+        </button>
+
+        <span class="voice-status"></span>
+
         <br><br>
 
+
+        <!-- 家族疾病史 -->
         <label>家族疾病史：</label>
         <br>
 
         <textarea
+            id="family_history"
             name="family_history"
             rows="5"
             cols="50"
             placeholder="例如：父親有高血壓，母親有糖尿病；沒有請填無"
         >{{ family_history }}</textarea>
 
+        <br>
+
+        <button
+            type="button"
+            onclick="startVoiceInput('family_history', this)"
+        >
+            🎤 語音輸入
+        </button>
+
+        <span class="voice-status"></span>
+
         <br><br>
+
 
         <button type="submit">
             儲存健康資料
@@ -75,6 +125,110 @@
     <button onclick="location.href='/patient-home'">
         回到患者首頁
     </button>
+
+
+    <script>
+
+        function startVoiceInput(targetId, button) {
+
+            const target = document.getElementById(targetId);
+
+            const SpeechRecognition =
+                window.SpeechRecognition ||
+                window.webkitSpeechRecognition;
+
+            if (!SpeechRecognition) {
+
+                alert(
+                    "您的瀏覽器不支援語音輸入，請使用 Google Chrome。"
+                );
+
+                return;
+            }
+
+            const recognition = new SpeechRecognition();
+
+            recognition.lang = "zh-TW";
+            recognition.continuous = false;
+            recognition.interimResults = false;
+
+
+            recognition.onstart = function () {
+
+                button.innerText = "🔴 正在聆聽...";
+
+            };
+
+
+            recognition.onresult = function (event) {
+
+                const transcript =
+                    event.results[0][0].transcript;
+
+                // 原本有內容時，在後面追加
+                if (target.value.trim() !== "") {
+
+                    target.value += " " + transcript;
+
+                } else {
+
+                    target.value = transcript;
+
+                }
+
+            };
+
+
+            recognition.onend = function () {
+
+                button.innerText =
+                    targetId === "family_history"
+                    ? "🎤 語音輸入"
+                    : "🎤";
+
+            };
+
+
+            recognition.onerror = function (event) {
+
+                button.innerText =
+                    targetId === "family_history"
+                    ? "🎤 語音輸入"
+                    : "🎤";
+
+                console.log(
+                    "語音辨識錯誤：",
+                    event.error
+                );
+
+                if (event.error === "not-allowed") {
+
+                    alert(
+                        "請允許瀏覽器使用麥克風。"
+                    );
+
+                } else if (event.error === "no-speech") {
+
+                    alert(
+                        "沒有偵測到語音，請再試一次。"
+                    );
+
+                } else {
+
+                    alert(
+                        "語音辨識失敗，請再試一次。"
+                    );
+
+                }
+
+            };
+
+
+            recognition.start();
+
+        }
+
+    </script>
 
 </body>
 
