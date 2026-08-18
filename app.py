@@ -2359,8 +2359,6 @@ def visit():
 
     facilities = cursor.fetchall()
 
-    conn.close()
-
     if not facilities:
         return """
         <h1>目前沒有可推薦的醫療院所</h1>
@@ -2432,6 +2430,8 @@ def visit():
         recommended_facilities.sort(
             key=lambda x: x["score"]
         )
+
+        conn.close()
 
         facility_html = ""
 
