@@ -2134,8 +2134,8 @@ def patient_home():
 
         <br><br>
 
-        <button onclick="location.href='/visit'">
-            我要到這間醫院看診
+        <button onclick="location.href='/choose-facility'">
+            我要看診
         </button>
 
         <br><br>
@@ -2172,6 +2172,59 @@ def patient_home():
 
         <button onclick="location.href='/logout'">
             登出
+        </button>
+
+    </body>
+
+    </html>
+    """
+
+@app.route("/choose-facility")
+def choose_facility():
+
+    if "patient_id" not in session:
+        return redirect("/patient")
+
+    return """
+    <!DOCTYPE html>
+    <html lang="zh-TW">
+
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport"
+              content="width=device-width, initial-scale=1.0">
+
+        <title>CareBridge - 看診方式</title>
+    </head>
+
+    <body>
+
+        <h1>我要看診</h1>
+
+        <p>
+            請先告訴我們您是否已經有指定的醫療院所。
+        </p>
+
+        <hr>
+
+        <h2>您有指定醫療院所嗎？</h2>
+
+        <br>
+
+        <button onclick="location.href='/specified-facility'">
+            有，我有指定的醫院
+        </button>
+
+        <br><br>
+
+        <button onclick="location.href='/visit'">
+            沒有，請幫我推薦
+        </button>
+
+        <br><br>
+
+        <button onclick="location.href='/patient-home'">
+            回到患者首頁
         </button>
 
     </body>
@@ -2241,74 +2294,167 @@ def visit():
         </button>
         """
 
-    # 取得今天最後一個預約號碼
+    # -------------------------
+    # 取得醫療院所
+    # -------------------------
+
     cursor.execute("""
-        SELECT COALESCE(MAX(appointment_number), 0)
-        FROM visits
-        WHERE visit_date = %s
-    """, (today,))
+        SELECT
+            facility_id,
+            name,
+            facility_type,
+            address,
+            specialties,
+            average_wait_minutes,
+            current_waiting_count,
+            available_slots
+        FROM medical_facilities
+        ORDER BY average_wait_minutes ASC
+    """)
 
-    last_number = cursor.fetchone()[0]
+    facilities = cursor.fetchall()
 
-    appointment_number = last_number + 1
+    conn.close()
 
-    # 使用台灣時間記錄預約時間
-    appointment_time = datetime.now(
-        ZoneInfo("Asia/Taipei")
-    ).strftime("%H:%M")
+    if not facilities:
+        return """
+        <h1>目前沒有可推薦的醫療院所</h1>
 
-    # 建立預約
-    try:
-
-        cursor.execute("""
-            INSERT INTO visits
-            (
-                patient_id,
-                visit_date,
-                status,
-                chief_complaint,
-                appointment_number,
-                appointment_time
-            )
-            VALUES (%s, %s, %s, %s, %s, %s)
-            RETURNING visit_id
-        """, (
-            patient_id,
-            today,
-            "已預約",
-            chief_complaint,
-            appointment_number,
-            appointment_time,
-        ))
-
-        new_visit_id = cursor.fetchone()[0]
-
-        conn.commit()
-        conn.close()
-
-    except Exception as e:
-
-        conn.rollback()
-        conn.close()
-
-        return f"""
-        <h1>建立預約失敗</h1>
-
-        <p>PostgreSQL 錯誤：</p>
-
-        <pre>{e}</pre>
-
-        <p>Patient ID：{patient_id}</p>
-        <p>預約號碼：{appointment_number}</p>
+        <p>
+            目前沒有可提供預約的醫療院所，
+            請稍後再試。
+        </p>
 
         <button onclick="location.href='/patient-home'">
             回到患者首頁
         </button>
         """
 
-    return redirect(
-        f"/appointment-success/{appointment_number}"
-    )
+    # -------------------------
+    # 顯示推薦結果
+    # -------------------------
+
+    facility_html = ""
+
+    for index, facility in enumerate(facilities, start=1):
+
+        (
+            facility_id,
+            name,
+            facility_type,
+            address,
+            specialties,
+            average_wait,
+            waiting_count,
+            available_slots
+        ) = facility
+
+        facility_html += f"""
+        <div>
+
+            <h2>第 {index} 推薦：{name}</h2>
+
+            <p>
+                <strong>院所類型：</strong>
+                {facility_type}
+            </p>
+
+            <p>
+                <strong>地址：</strong>
+                {address}
+            </p>
+
+            <p>
+                <strong>提供科別：</strong>
+                {specialties}
+            </p>
+
+            <p>
+                <strong>目前預估等待：</strong>
+                約 {average_wait} 分鐘
+            </p>
+
+            <p>
+                <strong>目前候診人數：</strong>
+                {waiting_count} 人
+            </p>
+
+            <p>
+                <strong>剩餘可掛號名額：</strong>
+                {available_slots} 人
+            </p>
+
+            <form action="/select-facility" method="POST">
+
+                <input
+                    type="hidden"
+                    name="facility_id"
+                    value="{facility_id}"
+                >
+
+                <input
+                    type="hidden"
+                    name="chief_complaint"
+                    value="{chief_complaint}"
+                >
+
+                <button type="submit">
+                    選擇這間院所
+                </button>
+
+            </form>
+
+        </div>
+
+        <hr>
+        """
+
+    return f"""
+    <!DOCTYPE html>
+
+    <html lang="zh-TW">
+
+    <head>
+        <meta charset="UTF-8">
+
+        <meta
+            name="viewport"
+            content="width=device-width,
+                     initial-scale=1.0"
+        >
+
+        <title>CareBridge - 醫療院所推薦</title>
+    </head>
+
+    <body>
+
+        <h1>推薦醫療院所</h1>
+
+        <p>
+            根據目前候診狀況，
+            以下院所目前等待時間較短。
+        </p>
+
+        <hr>
+
+        <h3>您的本次就醫原因</h3>
+
+        <p>
+            {chief_complaint}
+        </p>
+
+        <hr>
+
+        {facility_html}
+
+        <button onclick="location.href='/patient-home'">
+            回到患者首頁
+        </button>
+
+    </body>
+
+    </html>
+    """
 
 @app.route("/medical-recommendation")
 def medical_recommendation():
