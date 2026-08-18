@@ -467,7 +467,7 @@ def init_db():
             specialties TEXT,
             average_wait_minutes INTEGER DEFAULT 0,
             current_waiting_count INTEGER DEFAULT 0,
-            available_slots INTEGER DEFAULT 0
+            available_slots INTEGER DEFAULT 0,
             daily_capacity INTEGER DEFAULT 20
         )
     """)
