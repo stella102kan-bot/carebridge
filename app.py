@@ -2477,9 +2477,8 @@ def visit():
 
         score = (
             distance * 0.3
-            + average_wait * 0.4
+            + average_wait * 0.5
             + waiting_count * 0.2
-            - available_slots * 0.1
         )
 
         recommended_facilities.append({
