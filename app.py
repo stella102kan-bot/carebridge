@@ -5174,67 +5174,119 @@ def my_queue():
         return redirect("/patient")
 
     patient_id = session["patient_id"]
-    today = datetime.now().strftime("%Y-%m-%d")
+
+    today = datetime.now(
+        ZoneInfo("Asia/Taipei")
+    ).strftime("%Y-%m-%d")
 
     conn = get_db_connection()
     cursor = conn.cursor()
 
-    # 找到患者今天最新的一筆預約
+    # =========================
+    # 找到患者今天最新的進行中預約
+    # =========================
+
     cursor.execute("""
         SELECT
-            visit_id,
-            appointment_number,
-            appointment_time,
-            status
-        FROM visits
-        WHERE patient_id = %s
-        AND visit_date = %s
-        ORDER BY visit_id DESC
+            v.visit_id,
+            v.appointment_number,
+            v.appointment_time,
+            v.status,
+            v.facility_id,
+            m.name,
+            m.facility_type,
+            m.address,
+            m.average_wait_minutes
+        FROM visits v
+        LEFT JOIN medical_facilities m
+            ON v.facility_id = m.facility_id
+        WHERE v.patient_id = %s
+        AND v.visit_date = %s
+        AND v.status IN (
+            '已預約',
+            '已報到',
+            '看診中'
+        )
+        ORDER BY v.visit_id DESC
         LIMIT 1
-    """, (patient_id, today))
+    """, (
+        patient_id,
+        today
+    ))
 
     visit = cursor.fetchone()
 
     if not visit:
+
         conn.close()
 
         return """
         <h1>目前沒有今日預約</h1>
+
+        <p>
+            您目前沒有進行中的看診預約。
+        </p>
 
         <button onclick="location.href='/patient-home'">
             回到患者首頁
         </button>
         """
 
-    appointment_number = visit[1]
-    status = visit[3]
+    (
+        visit_id,
+        appointment_number,
+        appointment_time,
+        status,
+        facility_id,
+        facility_name,
+        facility_type,
+        facility_address,
+        average_wait
+    ) = visit
 
-    # -------------------------
+    # =========================
     # 計算前方等待人數
-    # -------------------------
+    # =========================
 
     waiting_ahead = 0
 
+    # -------------------------
+    # 尚未報到
+    # -------------------------
+
     if status == "已預約":
 
-        # 已報到或看診中的人優先
+        # 已報到或看診中的患者
+        # 必須是同一家醫院
         cursor.execute("""
             SELECT COUNT(*)
             FROM visits
-            WHERE visit_date = %s
+            WHERE facility_id = %s
+            AND visit_date = %s
             AND status IN ('已報到', '看診中')
-        """, (today,))
+            AND visit_id != %s
+        """, (
+            facility_id,
+            today,
+            visit_id
+        ))
 
         priority_count = cursor.fetchone()[0]
 
-        # 比自己更早的未報到預約
+        # 同一家醫院中
+        # 比自己預約號碼更早的人
         cursor.execute("""
             SELECT COUNT(*)
             FROM visits
-            WHERE visit_date = %s
+            WHERE facility_id = %s
+            AND visit_date = %s
             AND status = '已預約'
             AND appointment_number < %s
-        """, (today, appointment_number))
+        """, (
+            facility_id,
+            today,
+            appointment_number
+        ))
 
         earlier_reserved = cursor.fetchone()[0]
 
@@ -5243,24 +5295,37 @@ def my_queue():
             earlier_reserved
         )
 
+    # -------------------------
+    # 已報到
+    # -------------------------
+
     elif status == "已報到":
 
         cursor.execute("""
             SELECT COUNT(*)
             FROM visits
-            WHERE visit_date = %s
+            WHERE facility_id = %s
+            AND visit_date = %s
             AND status = '已報到'
             AND appointment_number < %s
-        """, (today, appointment_number))
+        """, (
+            facility_id,
+            today,
+            appointment_number
+        ))
 
         earlier_checked_in = cursor.fetchone()[0]
 
         cursor.execute("""
             SELECT COUNT(*)
             FROM visits
-            WHERE visit_date = %s
+            WHERE facility_id = %s
+            AND visit_date = %s
             AND status = '看診中'
-        """, (today,))
+        """, (
+            facility_id,
+            today
+        ))
 
         consulting_count = cursor.fetchone()[0]
 
@@ -5269,44 +5334,59 @@ def my_queue():
             consulting_count
         )
 
+    # -------------------------
+    # 看診中
+    # -------------------------
+
     elif status == "看診中":
+
         waiting_ahead = 0
 
-    elif status == "已完成":
-        waiting_ahead = 0
-
-    # -------------------------
+    # =========================
     # 目前叫號
-    # -------------------------
+    # =========================
 
     cursor.execute("""
         SELECT appointment_number
         FROM visits
-        WHERE visit_date = %s
+        WHERE facility_id = %s
+        AND visit_date = %s
         AND status = '看診中'
         ORDER BY started_at DESC
         LIMIT 1
-    """, (today,))
+    """, (
+        facility_id,
+        today
+    ))
 
     current_call = cursor.fetchone()
 
     if current_call:
+
         current_number = current_call[0]
+
     else:
+
         current_number = "尚未叫號"
 
-    # -------------------------
-    # 預估等待時間
-    # -------------------------
+    # =========================
+    # 計算平均看診時間
+    # =========================
 
     cursor.execute("""
-        SELECT started_at, completed_at
+        SELECT
+            started_at,
+            completed_at
         FROM visits
-        WHERE visit_date = %s
+        WHERE facility_id = %s
+        AND visit_date = %s
         AND status = '已完成'
         AND started_at IS NOT NULL
         AND completed_at IS NOT NULL
-    """, (today,))
+    """, (
+        facility_id,
+        today
+    ))
 
     completed_visits = cursor.fetchall()
 
@@ -5316,52 +5396,108 @@ def my_queue():
 
         for started_at, completed_at in completed_visits:
 
-            start_time = datetime.strptime(
-                started_at,
-                "%Y-%m-%d %H:%M:%S"
+            try:
+
+                if isinstance(started_at, str):
+
+                    start_time = datetime.strptime(
+                        started_at,
+                        "%Y-%m-%d %H:%M:%S"
+                    )
+
+                else:
+
+                    start_time = started_at
+
+                if isinstance(completed_at, str):
+
+                    end_time = datetime.strptime(
+                        completed_at,
+                        "%Y-%m-%d %H:%M:%S"
+                    )
+
+                else:
+
+                    end_time = completed_at
+
+                duration = (
+                    end_time - start_time
+                ).total_seconds() / 60
+
+                if duration > 0:
+
+                    durations.append(duration)
+
+            except Exception:
+
+                continue
+
+        if durations:
+
+            average_duration = (
+                sum(durations) /
+                len(durations)
             )
 
-            end_time = datetime.strptime(
-                completed_at,
-                "%Y-%m-%d %H:%M:%S"
-            )
+        else:
 
-            duration = (
-                end_time - start_time
-            ).total_seconds() / 60
-
-            durations.append(duration)
-
-        average_duration = sum(durations) / len(durations)
+            average_duration = average_wait or 10
 
     else:
-        average_duration = 10
+
+        average_duration = average_wait or 10
+
+    # =========================
+    # 預估等待時間
+    # =========================
 
     estimated_wait = round(
-        waiting_ahead * average_duration
+        waiting_ahead *
+        average_duration
     )
 
+    # =========================
+    # 預估開始看診時間
+    # =========================
 
-    taiwan_time = datetime.now(ZoneInfo("Asia/Taipei"))
+    taiwan_time = datetime.now(
+        ZoneInfo("Asia/Taipei")
+    )
 
     estimated_time = (
         taiwan_time +
-        timedelta(minutes=estimated_wait)
+        timedelta(
+            minutes=estimated_wait
+        )
     ).strftime("%H:%M")
-
-    print("DEBUG Taiwan time:", taiwan_time)
-    print("DEBUG estimated time:", estimated_time)
 
     conn.close()
 
+    # =========================
+    # 顯示候診進度
+    # =========================
+
     return render_template(
         "my-queue.html",
+
+        facility_name=facility_name,
+
+        facility_type=facility_type,
+
+        facility_address=facility_address,
+
         appointment_number=appointment_number,
-        appointment_time=visit[2],
+
+        appointment_time=appointment_time,
+
         status=status,
+
         current_number=current_number,
+
         waiting_ahead=waiting_ahead,
+
         estimated_wait=estimated_wait,
+
         estimated_time=estimated_time
     )
 
