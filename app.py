@@ -2663,7 +2663,7 @@ def visit():
             FROM visits
             WHERE visit_date = %s
         """, (
-            today
+            today,
         ))
 
         last_number = cursor.fetchone()[0]
