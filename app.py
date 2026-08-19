@@ -2296,16 +2296,23 @@ def visit():
     if "patient_id" not in session:
         return redirect("/patient")
 
+    # =========================
     # GET：顯示預約頁面
+    # =========================
+
     if request.method == "GET":
         return render_template("visit.html")
 
     patient_id = session["patient_id"]
+
     # 暫時使用測試位置
     patient_latitude = 22.6273
     patient_longitude = 120.3014
 
+    # =========================
     # 取得本次症狀
+    # =========================
+
     chief_complaint = request.form.get(
         "chief_complaint",
         ""
@@ -2315,12 +2322,18 @@ def visit():
         return """
         <h1>請輸入本次症狀</h1>
 
-        <p>請告訴醫生這次到醫院的原因或目前症狀。</p>
+        <p>
+            請告訴醫生這次到醫院的原因或目前症狀。
+        </p>
 
         <button onclick="location.href='/visit'">
             返回
         </button>
         """
+
+    # =========================
+    # 今天日期
+    # =========================
 
     today = datetime.now(
         ZoneInfo("Asia/Taipei")
@@ -2329,7 +2342,10 @@ def visit():
     conn = get_db_connection()
     cursor = conn.cursor()
 
-    # 檢查今天是否已經有尚未完成的預約
+    # =========================
+    # 檢查今天是否已有預約
+    # =========================
+
     cursor.execute("""
         SELECT visit_id
         FROM visits
@@ -2338,26 +2354,32 @@ def visit():
         AND status IN ('已預約', '已報到', '看診中')
         ORDER BY visit_id DESC
         LIMIT 1
-    """, (patient_id, today))
+    """, (
+        patient_id,
+        today
+    ))
 
     existing_visit = cursor.fetchone()
 
     if existing_visit:
+
         conn.close()
 
         return """
         <h1>今天已有預約</h1>
 
-        <p>您今天已經有一筆進行中的預約。</p>
+        <p>
+            您今天已經有一筆進行中的預約。
+        </p>
 
         <button onclick="location.href='/patient-home'">
             回到患者首頁
         </button>
         """
 
-    # -------------------------
+    # =========================
     # 取得醫療院所
-    # -------------------------
+    # =========================
 
     cursor.execute("""
         SELECT
@@ -2371,12 +2393,14 @@ def visit():
             average_wait_minutes,
             daily_capacity
         FROM medical_facilities
-        ORDER BY average_wait_minutes ASC
     """)
 
     facilities = cursor.fetchall()
 
     if not facilities:
+
+        conn.close()
+
         return """
         <h1>目前沒有可推薦的醫療院所</h1>
 
@@ -2390,9 +2414,9 @@ def visit():
         </button>
         """
 
-    # -------------------------
-    # 顯示推薦結果
-    # -------------------------
+    # =========================
+    # 建立推薦資料
+    # =========================
 
     recommended_facilities = []
 
@@ -2407,8 +2431,12 @@ def visit():
             longitude,
             specialties,
             average_wait,
-            available_slots
+            daily_capacity
         ) = facility
+
+        # -------------------------
+        # 計算距離
+        # -------------------------
 
         distance = calculate_distance(
             patient_latitude,
@@ -2416,6 +2444,10 @@ def visit():
             latitude,
             longitude
         )
+
+        # -------------------------
+        # 計算今天候診人數
+        # -------------------------
 
         cursor.execute("""
             SELECT COUNT(*)
@@ -2430,6 +2462,19 @@ def visit():
 
         waiting_count = cursor.fetchone()[0]
 
+        # -------------------------
+        # 計算剩餘名額
+        # -------------------------
+
+        available_slots = max(
+            daily_capacity - waiting_count,
+            0
+        )
+
+        # -------------------------
+        # 暫時使用原本的推薦分數
+        # -------------------------
+
         score = (
             distance * 0.3
             + average_wait * 0.4
@@ -2438,40 +2483,56 @@ def visit():
         )
 
         recommended_facilities.append({
+
             "facility": facility,
+
             "distance": distance,
+
             "waiting_count": waiting_count,
+
+            "available_slots": available_slots,
+
             "score": score
         })
 
-        recommended_facilities.sort(
-            key=lambda x: x["score"]
-        )
+    # =========================
+    # 所有院所計算完後再排序
+    # =========================
 
-        conn.close()
+    recommended_facilities.sort(
+        key=lambda x: x["score"]
+    )
 
-        facility_html = ""
+    # =========================
+    # 建立推薦畫面
+    # =========================
 
-        for index, item in enumerate(
-            recommended_facilities,
-            start=1
-        ):
+    facility_html = ""
 
-            facility = item["facility"]
-            distance = item["distance"]
-            waiting_count = item["waiting_count"]
+    for index, item in enumerate(
+        recommended_facilities,
+        start=1
+    ):
 
-            (
-                facility_id,
-                name,
-                facility_type,
-                address,
-                latitude,
-                longitude,
-                specialties,
-                average_wait,
-                available_slots
-            ) = facility
+        facility = item["facility"]
+
+        distance = item["distance"]
+
+        waiting_count = item["waiting_count"]
+
+        available_slots = item["available_slots"]
+
+        (
+            facility_id,
+            name,
+            facility_type,
+            address,
+            latitude,
+            longitude,
+            specialties,
+            average_wait,
+            daily_capacity
+        ) = facility
 
         facility_html += f"""
         <div>
@@ -2513,7 +2574,10 @@ def visit():
                 {available_slots} 人
             </p>
 
-            <form action="/select-facility" method="POST">
+            <form
+                action="/select-facility"
+                method="POST"
+            >
 
                 <input
                     type="hidden"
@@ -2538,12 +2602,23 @@ def visit():
         <hr>
         """
 
+    # =========================
+    # 關閉資料庫
+    # =========================
+
+    conn.close()
+
+    # =========================
+    # 回傳推薦頁面
+    # =========================
+
     return f"""
     <!DOCTYPE html>
 
     <html lang="zh-TW">
 
     <head>
+
         <meta charset="UTF-8">
 
         <meta
@@ -2552,7 +2627,10 @@ def visit():
                      initial-scale=1.0"
         >
 
-        <title>CareBridge - 醫療院所推薦</title>
+        <title>
+            CareBridge - 醫療院所推薦
+        </title>
+
     </head>
 
     <body>
@@ -2560,8 +2638,9 @@ def visit():
         <h1>推薦醫療院所</h1>
 
         <p>
-            根據目前候診狀況，
-            以下院所目前等待時間較短。
+            系統會根據距離、
+            預估等待時間及目前候診狀況
+            進行推薦。
         </p>
 
         <hr>
@@ -2576,7 +2655,9 @@ def visit():
 
         {facility_html}
 
-        <button onclick="location.href='/patient-home'">
+        <button
+            onclick="location.href='/patient-home'"
+        >
             回到患者首頁
         </button>
 
