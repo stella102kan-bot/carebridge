@@ -2578,7 +2578,7 @@ def visit():
             WHERE facility_id = %s
             LIMIT 1
         """, (
-            facility_id
+            facility_id,
         ))
 
         facility = cursor.fetchone()
