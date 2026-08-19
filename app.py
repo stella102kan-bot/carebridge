@@ -490,32 +490,10 @@ def init_db():
     # =========================
     # 建立測試醫療院所
     # =========================
-    
-    cursor.execute("""
-        SELECT facility_id
-        FROM medical_facilities
-        WHERE name = %s
-        LIMIT 1
-    """, ("CareBridge 測試診所",))
 
-    existing_facility = cursor.fetchone()
+    test_facilities = [
 
-    if not existing_facility:
-        cursor.execute("""
-            INSERT INTO medical_facilities
-            (
-                name,
-                facility_type,
-                address,
-                latitude,
-                longitude,
-                specialties,
-                average_wait_minutes,
-                current_waiting_count,
-                available_slots
-            )
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
-        """, (
+        (
             "CareBridge 測試診所",
             "診所",
             "高雄市測試地址",
@@ -523,9 +501,65 @@ def init_db():
             120.3014,
             "家醫科,內科",
             15,
-            2,
-            10
-        ))
+            20
+        ),
+
+        (
+            "CareBridge 第二醫院",
+            "醫院",
+            "高雄市第二測試地址",
+            22.6300,
+            120.3050,
+            "內科,外科",
+            25,
+            30
+        ),
+
+        (
+            "CareBridge 第三醫院",
+            "醫院",
+            "高雄市第三測試地址",
+            22.6200,
+            120.2950,
+            "家醫科,兒科",
+            20,
+            25
+        )
+    ]
+
+
+    for facility in test_facilities:
+
+        cursor.execute("""
+            SELECT facility_id
+            FROM medical_facilities
+            WHERE name = %s
+            LIMIT 1
+        """, (facility[0],))
+
+        existing_facility = cursor.fetchone()
+
+        if not existing_facility:
+
+            cursor.execute("""
+                INSERT INTO medical_facilities
+                (
+                    name,
+                    facility_type,
+                    address,
+                    latitude,
+                    longitude,
+                    specialties,
+                    average_wait_minutes,
+                    daily_capacity
+                )
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+            """, facility)
+
+
+    # =========================
+    # 確保 visits 有 facility_id
+    # =========================
 
     cursor.execute("""
         SELECT column_name
@@ -537,10 +571,12 @@ def init_db():
     facility_column = cursor.fetchone()
 
     if not facility_column:
+
         cursor.execute("""
             ALTER TABLE visits
             ADD COLUMN facility_id INTEGER
         """)
+
 
     conn.commit()
     conn.close()
