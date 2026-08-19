@@ -2784,9 +2784,11 @@ def visit():
                 0
             )
             FROM visits
-            WHERE visit_date = %s
+            WHERE facility_id = %s
+            AND visit_date = %s
         """, (
-            today,
+            selected_facility_id,
+            today
         ))
 
         last_number = cursor.fetchone()[0]
@@ -3885,6 +3887,7 @@ def appointment_success(appointment_number):
     cursor.execute("""
         SELECT
             visit_id,
+            facility_id,
             appointment_number,
             appointment_time,
             status,
@@ -3907,10 +3910,11 @@ def appointment_success(appointment_number):
         return "找不到預約資料"
 
     visit_id = visit[0]
-    my_number = visit[1]
-    appointment_time = visit[2]
-    my_status = visit[3]
-    chief_complaint = visit[4]
+    facility_id = visit[1]
+    my_number = visit[2]
+    appointment_time = visit[3]
+    my_status = visit[4]
+    chief_complaint = visit[5]
 
     # -------------------------
     # 預設值
@@ -3931,9 +3935,13 @@ def appointment_success(appointment_number):
         cursor.execute("""
             SELECT COUNT(*)
             FROM visits
-            WHERE visit_date = %s
+            WHERE facility_id = %s
+            AND visit_date = %s
             AND status IN ('已報到', '看診中')
-        """, (today,))
+        """, (
+            facility_id,
+            today
+        ))
 
         checked_in_count = cursor.fetchone()[0]
 
@@ -3941,10 +3949,15 @@ def appointment_success(appointment_number):
         cursor.execute("""
             SELECT COUNT(*)
             FROM visits
-            WHERE visit_date = %s
+            WHERE facility_id = %s
+            AND visit_date = %s
             AND status = '已預約'
             AND appointment_number < %s
-        """, (today, my_number))
+        """, (
+            facility_id,
+            today,
+            my_number
+        ))
 
         earlier_reserved_count = cursor.fetchone()[0]
 
