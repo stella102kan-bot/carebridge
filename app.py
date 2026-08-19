@@ -2290,6 +2290,130 @@ def choose_facility():
     </html>
     """
 
+@app.route("/specified-facility")
+def specified_facility():
+
+    if "patient_id" not in session:
+        return redirect("/patient")
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    cursor.execute("""
+        SELECT
+            facility_id,
+            name,
+            facility_type,
+            address,
+            specialties
+        FROM medical_facilities
+        ORDER BY facility_id
+    """)
+
+    facilities = cursor.fetchall()
+
+    conn.close()
+
+    if not facilities:
+        return """
+        <h1>目前沒有可選擇的醫療院所</h1>
+
+        <p>
+            目前系統中沒有醫療院所資料。
+        </p>
+
+        <button onclick="location.href='/patient-home'">
+            回到患者首頁
+        </button>
+        """
+
+    facility_html = ""
+
+    for facility in facilities:
+
+        (
+            facility_id,
+            name,
+            facility_type,
+            address,
+            specialties
+        ) = facility
+
+        facility_html += f"""
+        <div>
+
+            <h2>{name}</h2>
+
+            <p>
+                <strong>院所類型：</strong>
+                {facility_type}
+            </p>
+
+            <p>
+                <strong>地址：</strong>
+                {address}
+            </p>
+
+            <p>
+                <strong>提供科別：</strong>
+                {specialties or "未提供"}
+            </p>
+
+            <button
+                onclick="location.href='/visit?facility_id={facility_id}'"
+            >
+                選擇這間院所
+            </button>
+
+        </div>
+
+        <hr>
+        """
+
+    return f"""
+    <!DOCTYPE html>
+
+    <html lang="zh-TW">
+
+    <head>
+        <meta charset="UTF-8">
+
+        <meta
+            name="viewport"
+            content="width=device-width,
+                     initial-scale=1.0"
+        >
+
+        <title>CareBridge - 選擇醫療院所</title>
+    </head>
+
+    <body>
+
+        <h1>選擇指定醫療院所</h1>
+
+        <p>
+            請選擇您這次想前往的醫療院所。
+        </p>
+
+        <hr>
+
+        {facility_html}
+
+        <button onclick="location.href='/choose-facility'">
+            返回
+        </button>
+
+        <br><br>
+
+        <button onclick="location.href='/patient-home'">
+            回到患者首頁
+        </button>
+
+    </body>
+
+    </html>
+    """
+
 @app.route("/visit", methods=["GET", "POST"])
 def visit():
 
@@ -2301,9 +2425,23 @@ def visit():
     # =========================
 
     if request.method == "GET":
-        return render_template("visit.html")
+
+        facility_id = request.args.get("facility_id")
+
+        return render_template(
+            "visit.html",
+            facility_id=facility_id
+        )
 
     patient_id = session["patient_id"]
+
+    # =========================
+    # 取得指定醫療院所
+    # =========================
+
+    facility_id = request.form.get(
+        "facility_id"
+    )
 
     # 暫時使用測試位置
     patient_latitude = 22.6273
@@ -2331,6 +2469,215 @@ def visit():
         </button>
         """
 
+    # =========================
+    # 如果患者已指定醫療院所
+    # =========================
+
+    if facility_id:
+
+        # 確認指定的醫療院所存在
+        cursor.execute("""
+            SELECT
+                facility_id,
+                name,
+                facility_type,
+                average_wait_minutes,
+                daily_capacity
+            FROM medical_facilities
+            WHERE facility_id = %s
+            LIMIT 1
+        """, (facility_id,))
+
+        facility = cursor.fetchone()
+
+        if not facility:
+            conn.close()
+
+            return """
+            <h1>找不到醫療院所</h1>
+
+            <p>您指定的醫療院所不存在。</p>
+
+            <button onclick="location.href='/patient-home'">
+                回到患者首頁
+            </button>
+            """
+
+        (
+            selected_facility_id,
+            facility_name,
+            facility_type,
+            average_wait,
+            daily_capacity
+        ) = facility
+
+        # 計算今天這間院所已經有幾個預約
+        cursor.execute("""
+            SELECT COUNT(*)
+            FROM visits
+            WHERE facility_id = %s
+            AND visit_date = %s
+            AND status IN ('已預約', '已報到', '看診中')
+        """, (
+            selected_facility_id,
+            today
+        ))
+
+        booked_count = cursor.fetchone()[0]
+
+        available_slots = max(
+            daily_capacity - booked_count,
+            0
+        )
+
+        # 沒有名額
+        if available_slots <= 0:
+
+            conn.close()
+
+            return """
+            <h1>目前無法預約</h1>
+
+            <p>
+                很抱歉，這間院所今天的掛號名額已滿。
+            </p>
+
+            <button onclick="location.href='/patient-home'">
+                回到患者首頁
+            </button>
+            """
+
+        # 取得今天最後一個預約號碼
+        cursor.execute("""
+            SELECT COALESCE(MAX(appointment_number), 0)
+            FROM visits
+            WHERE visit_date = %s
+        """, (today,))
+
+        last_number = cursor.fetchone()[0]
+
+        appointment_number = last_number + 1
+
+        appointment_time = datetime.now(
+            ZoneInfo("Asia/Taipei")
+        ).strftime("%H:%M")
+
+        # 建立預約
+        cursor.execute("""
+            INSERT INTO visits
+            (
+                patient_id,
+                facility_id,
+                visit_date,
+                status,
+                chief_complaint,
+                appointment_number,
+                appointment_time
+            )
+            VALUES (%s, %s, %s, %s, %s, %s, %s)
+            RETURNING visit_id
+        """, (
+            patient_id,
+            selected_facility_id,
+            today,
+            "已預約",
+            chief_complaint,
+            appointment_number,
+            appointment_time
+        ))
+
+        visit_id = cursor.fetchone()[0]
+
+        # 建立預約後重新計算候診人數
+        cursor.execute("""
+            SELECT COUNT(*)
+            FROM visits
+            WHERE facility_id = %s
+            AND visit_date = %s
+            AND status IN ('已預約', '已報到', '看診中')
+        """, (
+            selected_facility_id,
+            today
+        ))
+
+        waiting_count = cursor.fetchone()[0]
+
+        conn.commit()
+        conn.close()
+
+        return f"""
+        <!DOCTYPE html>
+
+        <html lang="zh-TW">
+
+        <head>
+            <meta charset="UTF-8">
+
+            <meta
+                name="viewport"
+                content="width=device-width,
+                        initial-scale=1.0"
+            >
+
+            <title>CareBridge - 預約成功</title>
+        </head>
+
+        <body>
+
+            <h1>預約成功！</h1>
+
+            <hr>
+
+            <h2>您的預約</h2>
+
+            <p>
+                <strong>醫療院所：</strong>
+                {facility_name}
+            </p>
+
+            <p>
+                <strong>院所類型：</strong>
+                {facility_type}
+            </p>
+
+            <p>
+                <strong>預約號碼：</strong>
+                {appointment_number}
+            </p>
+
+            <p>
+                <strong>預約時間：</strong>
+                {appointment_time}
+            </p>
+
+            <p>
+                <strong>本次症狀：</strong>
+                {chief_complaint}
+            </p>
+
+            <hr>
+
+            <p>
+                <strong>目前預估等待：</strong>
+                約 {average_wait} 分鐘
+            </p>
+
+            <p>
+                <strong>目前候診人數：</strong>
+                {waiting_count} 人
+            </p>
+
+            <hr>
+
+            <button onclick="location.href='/patient-home'">
+                回到患者首頁
+            </button>
+
+        </body>
+
+        </html>
+        """
+    
     # =========================
     # 今天日期
     # =========================
@@ -2819,8 +3166,12 @@ def select_facility():
     cursor.execute("""
         SELECT COALESCE(MAX(appointment_number), 0)
         FROM visits
-        WHERE visit_date = %s
-    """, (today,))
+        WHERE facility_id = %s
+        AND visit_date = %s
+    """, (
+        facility_id,
+        today
+    ))
 
     last_number = cursor.fetchone()[0]
 
@@ -2862,19 +3213,6 @@ def select_facility():
     ))
 
     visit_id = cursor.fetchone()[0]
-
-    cursor.execute("""
-        SELECT COUNT(*)
-        FROM visits
-        WHERE facility_id = %s
-        AND visit_date = %s
-        AND status IN ('已預約', '已報到')
-    """, (
-        facility_id,
-        today
-    ))
-
-    waiting_count = cursor.fetchone()[0]
 
     cursor.execute("""
         SELECT COUNT(*)

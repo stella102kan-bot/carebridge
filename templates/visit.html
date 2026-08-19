@@ -3,18 +3,26 @@
 
 <head>
     <meta charset="UTF-8">
-    <title>CareBridge - 我要到這間醫院看診</title>
+    <title>CareBridge - 輸入本次症狀</title>
 </head>
 
 <body>
 
-    <h1>我要到這間醫院看診</h1>
+    <h1>輸入本次症狀</h1>
 
     <p>
         請輸入這次看診的主要原因或目前症狀。
     </p>
 
     <form action="/visit" method="POST">
+
+        {% if facility_id %}
+            <input
+                type="hidden"
+                name="facility_id"
+                value="{{ facility_id }}"
+            >
+        {% endif %}
 
         <label>本次症狀／就診原因：</label>
 
