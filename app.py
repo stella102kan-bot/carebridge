@@ -2123,35 +2123,105 @@ def patient_home():
     patient_id = session["patient_id"]
     patient_name = session.get("patient_name", "患者")
 
-    today = datetime.now().strftime("%Y-%m-%d")
+    today = datetime.now(
+        ZoneInfo("Asia/Taipei")
+    ).strftime("%Y-%m-%d")
 
     conn = get_db_connection()
     cursor = conn.cursor()
 
+    # =========================
     # 取得今天最新的一筆預約
+    # =========================
+
     cursor.execute("""
         SELECT
+            v.appointment_number,
+            v.appointment_time,
+            v.status,
+            v.chief_complaint,
+            v.ai_summary,
+            m.name,
+            m.facility_type,
+            m.address,
+            m.average_wait_minutes
+        FROM visits v
+        LEFT JOIN medical_facilities m
+            ON v.facility_id = m.facility_id
+        WHERE v.patient_id = %s
+        AND v.visit_date = %s
+        AND v.status IN ('已預約', '已報到', '看診中')
+        ORDER BY v.visit_id DESC
+        LIMIT 1
+    """, (
+        patient_id,
+        today
+    ))
+
+    visit = cursor.fetchone()
+
+    # =========================
+    # 如果有今日預約
+    # =========================
+
+    if visit:
+
+        (
             appointment_number,
             appointment_time,
             status,
             chief_complaint,
-            ai_summary
-        FROM visits
-        WHERE patient_id = %s
-        AND visit_date = %s
-        ORDER BY visit_id DESC
-        LIMIT 1
-    """, (patient_id, today))
+            ai_summary,
+            facility_name,
+            facility_type,
+            facility_address,
+            average_wait
+        ) = visit
 
-    visit = cursor.fetchone()
+        # -------------------------
+        # 取得目前候診人數
+        # -------------------------
+
+        cursor.execute("""
+            SELECT COUNT(*)
+            FROM visits
+            WHERE facility_id = (
+                SELECT facility_id
+                FROM visits
+                WHERE patient_id = %s
+                AND visit_date = %s
+                AND status IN ('已預約', '已報到', '看診中')
+                ORDER BY visit_id DESC
+                LIMIT 1
+            )
+            AND visit_date = %s
+            AND status IN ('已預約', '已報到', '看診中')
+        """, (
+            patient_id,
+            today,
+            today
+        ))
+
+        waiting_count = cursor.fetchone()[0]
+
+    else:
+
+        appointment_number = None
+        appointment_time = None
+        status = None
+        chief_complaint = None
+        ai_summary = None
+        facility_name = None
+        facility_type = None
+        facility_address = None
+        average_wait = None
+        waiting_count = 0
 
     conn.close()
 
-    # -------------------------
-    # 顯示今日預約資訊
-    # -------------------------
-
-    appointment_info = ""
+    # =========================
+    # 建立今日預約資訊
+    # =========================
 
     if visit:
 
@@ -2161,23 +2231,53 @@ def patient_home():
         <h3>今日預約</h3>
 
         <p>
+            <strong>醫療院所：</strong>
+            {facility_name or "未提供"}
+        </p>
+
+        <p>
+            <strong>院所類型：</strong>
+            {facility_type or "未提供"}
+        </p>
+
+        <p>
+            <strong>地址：</strong>
+            {facility_address or "未提供"}
+        </p>
+
+        <p>
             <strong>預約號碼：</strong>
-            {visit[0]}
+            {appointment_number}
         </p>
 
         <p>
             <strong>預約時間：</strong>
-            {visit[1]}
+            {appointment_time}
         </p>
 
         <p>
             <strong>目前狀態：</strong>
-            {visit[2]}
+            {status}
         </p>
 
         <p>
             <strong>本次症狀／就診原因：</strong>
-            {visit[3] or "未提供"}
+            {chief_complaint or "未提供"}
+        </p>
+
+        <p>
+            <strong>AI 症狀摘要：</strong>
+            {ai_summary or "尚未產生"}
+        </p>
+
+        <p>
+            <strong>目前候診人數：</strong>
+            {waiting_count} 人
+        </p>
+
+        <p>
+            <strong>預估等待時間：</strong>
+            約 {average_wait or 0} 分鐘
         </p>
 
         <br>
@@ -2194,26 +2294,39 @@ def patient_home():
 
         <h3>今日尚無預約</h3>
 
-        <p>您目前還沒有今天的看診預約。</p>
+        <p>
+            您目前還沒有今天的看診預約。
+        </p>
         """
 
     return f"""
     <!DOCTYPE html>
+
     <html lang="zh-TW">
 
     <head>
-        <meta charset="UTF-8">
-        <meta name="viewport"
-              content="width=device-width, initial-scale=1.0">
 
-        <title>CareBridge - 患者首頁</title>
+        <meta charset="UTF-8">
+
+        <meta
+            name="viewport"
+            content="width=device-width,
+                     initial-scale=1.0"
+        >
+
+        <title>
+            CareBridge - 患者首頁
+        </title>
+
     </head>
 
     <body>
 
         <h1>患者首頁</h1>
 
-        <h2>歡迎回來，{patient_name}！</h2>
+        <h2>
+            歡迎回來，{patient_name}！
+        </h2>
 
         <p>
             <strong>Patient ID：</strong>
@@ -2222,17 +2335,19 @@ def patient_home():
 
         <hr>
 
-        <button onclick="location.href='/health-info'">
+        <button
+            onclick="location.href='/health-info'"
+        >
             我的健康資料
         </button>
 
         <br><br>
 
-        <button onclick="location.href='/choose-facility'">
+        <button
+            onclick="location.href='/choose-facility'"
+        >
             我要看診
         </button>
-
-        <br><br>
 
         {appointment_info}
 
@@ -2240,7 +2355,9 @@ def patient_home():
 
         <h3>FHIR 資料</h3>
 
-        <button onclick="location.href='/patient-fhir'">
+        <button
+            onclick="location.href='/patient-fhir'"
+        >
             查看我的 FHIR 資料
         </button>
 
@@ -2251,20 +2368,26 @@ def patient_home():
             method="POST"
             style="display:inline;"
         >
+
             <button type="submit">
                 將資料送到 FHIR Server
             </button>
+
         </form>
 
         <br><br>
 
-        <button onclick="location.href='/get-fhir'">
+        <button
+            onclick="location.href='/get-fhir'"
+        >
             從 FHIR Server 查詢我的資料
         </button>
 
         <hr>
 
-        <button onclick="location.href='/logout'">
+        <button
+            onclick="location.href='/logout'"
+        >
             登出
         </button>
 
