@@ -2483,6 +2483,12 @@ def visit():
     patient_latitude = 22.6273
     patient_longitude = 120.3014
 
+    # 如果是指定醫療院所，取得指定的 facility_id
+    facility_id = request.args.get("facility_id")
+
+    if request.method == "POST":
+        facility_id = request.form.get("facility_id") or facility_id
+
     # =========================
     # 取得本次症狀
     # =========================
